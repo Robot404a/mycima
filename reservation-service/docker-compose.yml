@@ -1,0 +1,41 @@
+# Local dev for the reservation service.
+#   Database only :  docker compose up -d
+#   DB + service  :  docker compose --profile app up -d --build
+services:
+  reservation-db:
+    image: postgres:16-alpine
+    container_name: reservation-db
+    environment:
+      POSTGRES_DB: reservation
+      POSTGRES_USER: reservation
+      POSTGRES_PASSWORD: reservation_dev
+    ports:
+      - "5433:5432"
+    volumes:
+      - reservation_pgdata:/var/lib/postgresql/data
+      - ./db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U reservation -d reservation"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  reservation-service:
+    profiles: ["app"]
+    build:
+      image: mycima/reservation-service:dev
+      context: ..                         # repo root, like the gateway
+      dockerfile: reservation-service/Dockerfile
+    container_name: reservation-service
+    environment:
+      DATABASE_URL: postgresql://reservation:reservation_dev@reservation-db:5432/reservation
+      JWT_SECRET: ${JWT_SECRET:-dev-secret-change-me}
+      MOVIE_LOOKUP: ${MOVIE_LOOKUP:-stub}
+    ports:
+      - "8001:8000"
+    depends_on:
+      reservation-db:
+        condition: service_healthy
+
+volumes:
+  reservation_pgdata:
