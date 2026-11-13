@@ -1,6 +1,13 @@
 """All settings come from environment variables, with local-dev defaults."""
 import os
+import sys
 from decimal import Decimal
+from pathlib import Path
+
+# Local runs: make the repo's shared/ folder importable (in Docker, PYTHONPATH=/app does this).
+_REPO_ROOT = Path(__file__).resolve().parent.parent
+if (_REPO_ROOT / "shared").is_dir() and str(_REPO_ROOT) not in sys.path:
+    sys.path.append(str(_REPO_ROOT))
 
 
 def _int(name: str, default: int) -> int:

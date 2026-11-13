@@ -1,11 +1,9 @@
--- Reservation service schema (PostgreSQL)
+-- Reservation service schema (PostgreSQL 13+). Idempotent: the service applies it at startup.
 -- IDs from other services (user_id, showtime_id) are plain values, NOT foreign keys:
 -- each microservice owns its own database.
 
-CREATE EXTENSION IF NOT EXISTS pgcrypto;   -- gen_random_uuid()
-
 -- A hold = a temporary lock on seats while the user pays (expires automatically).
-CREATE TABLE holds (
+CREATE TABLE IF NOT EXISTS holds (
     id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id      BIGINT       NOT NULL,
     showtime_id  BIGINT       NOT NULL,
@@ -15,11 +13,11 @@ CREATE TABLE holds (
     expires_at   TIMESTAMPTZ  NOT NULL,
     CHECK (expires_at > created_at)
 );
-CREATE INDEX idx_holds_user    ON holds (user_id);
-CREATE INDEX idx_holds_expiry  ON holds (expires_at) WHERE status = 'active';
+CREATE INDEX IF NOT EXISTS idx_holds_user    ON holds (user_id);
+CREATE INDEX IF NOT EXISTS idx_holds_expiry  ON holds (expires_at) WHERE status = 'active';
 
 -- A booking = a confirmed (paid) reservation.
-CREATE TABLE bookings (
+CREATE TABLE IF NOT EXISTS bookings (
     id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id       BIGINT        NOT NULL,
     showtime_id   BIGINT        NOT NULL,
@@ -31,12 +29,12 @@ CREATE TABLE bookings (
     created_at    TIMESTAMPTZ   NOT NULL DEFAULT now(),
     cancelled_at  TIMESTAMPTZ
 );
-CREATE INDEX idx_bookings_user     ON bookings (user_id);
-CREATE INDEX idx_bookings_showtime ON bookings (showtime_id);
+CREATE INDEX IF NOT EXISTS idx_bookings_user     ON bookings (user_id);
+CREATE INDEX IF NOT EXISTS idx_bookings_showtime ON bookings (showtime_id);
 
 -- One row per seat per showtime that is held or booked.
 -- A seat is identified by its label (e.g. 'A5'); the hall layout lives in the Movie service.
-CREATE TABLE seat_claims (
+CREATE TABLE IF NOT EXISTS seat_claims (
     id           BIGSERIAL PRIMARY KEY,
     showtime_id  BIGINT       NOT NULL,
     seat_label   VARCHAR(10)  NOT NULL,
@@ -50,9 +48,9 @@ CREATE TABLE seat_claims (
 );
 
 -- THE anti-double-booking rule: a seat can have at most one live claim per showtime.
-CREATE UNIQUE INDEX uq_seat_active
+CREATE UNIQUE INDEX IF NOT EXISTS uq_seat_active
     ON seat_claims (showtime_id, seat_label)
     WHERE status IN ('held', 'booked');
 
-CREATE INDEX idx_claims_hold    ON seat_claims (hold_id);
-CREATE INDEX idx_claims_booking ON seat_claims (booking_id);
+CREATE INDEX IF NOT EXISTS idx_claims_hold    ON seat_claims (hold_id);
+CREATE INDEX IF NOT EXISTS idx_claims_booking ON seat_claims (booking_id);

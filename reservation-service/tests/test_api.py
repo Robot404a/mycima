@@ -19,6 +19,7 @@ def seat_status(client, label, showtime=SHOWTIME, user=None):
 
 # ---- basics -------------------------------------------------------------------------------
 def test_health(client):
+    assert client.get("/health").json()["status"] == "ok"
     r = client.get("/health")
     assert r.status_code == 200 and r.json()["database"] == "up"
 
@@ -198,3 +199,17 @@ def test_race_for_the_same_seat_has_exactly_one_winner(client):
         codes = list(pool.map(attempt, range(100, 110)))
     assert codes.count(201) == 1
     assert codes.count(409) == 9
+
+
+# ---- startup schema (what replicas do when the container starts) --------------------------
+def test_apply_schema_is_repeatable_and_replica_safe(client):
+    import db
+    from concurrent.futures import ThreadPoolExecutor as Pool
+
+    db.apply_schema()
+    db.apply_schema()                                    # repeating is harmless
+    with db.get_conn() as conn:                          # simulate a brand-new database
+        conn.execute("DROP TABLE seat_claims, bookings, holds CASCADE")
+    with Pool(max_workers=4) as pool:                    # four "replicas" starting at once
+        list(pool.map(lambda _: db.apply_schema(), range(4)))
+    assert hold(client, 1, ["A1"]).status_code == 201    # tables are back and working

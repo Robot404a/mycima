@@ -14,8 +14,10 @@ import config
 try:  # preferred: the team's shared implementation
     from shared.auth import decode_access_token, user_from_payload  # type: ignore
     USING_SHARED_AUTH = True
-except ImportError:  # local fallback
-    USING_SHARED_AUTH = False
+except ModuleNotFoundError as _exc:
+    if _exc.name not in ("shared", "shared.auth"):
+        raise  # shared/ exists but one of ITS dependencies (e.g. bcrypt) is missing: fail loudly
+    USING_SHARED_AUTH = False  # local fallback
 
     def decode_access_token(token: str) -> dict:
         try:

@@ -22,7 +22,7 @@ from logging_setup import RequestLogMiddleware, configure_logging
 from schemas import BookingCreate, ConfirmRequest, HoldCreate
 
 logger = configure_logging("reservation-service")
-log = logging.getLogger("reservation")
+log = logging.getLogger("reservation-service.main")
 
 
 def _expire_once() -> int:
@@ -30,11 +30,26 @@ def _expire_once() -> int:
         return service.expire_holds(conn)
 
 
+async def _ensure_schema(attempts: int = 15, delay: float = 2.0) -> bool:
+    for attempt in range(1, attempts + 1):
+        try:
+            await asyncio.to_thread(db.apply_schema)
+            log.info("database schema is ready")
+            return True
+        except Exception as exc:
+            log.warning("database not ready yet (%s/%s): %s", attempt, attempts, exc)
+            await asyncio.sleep(delay)
+    log.error("could not prepare the database schema; will keep retrying in the background")
+    return False
+
+
 async def _cleanup_loop() -> None:
     """Frees seats of expired holds even when nobody is booking."""
     while True:
         await asyncio.sleep(config.CLEANUP_INTERVAL_SECONDS)
         try:
+            if not db.schema_ready:
+                await asyncio.to_thread(db.apply_schema)
             freed = await asyncio.to_thread(_expire_once)
             if freed:
                 log.info("expired %s overdue hold(s)", freed)
@@ -45,8 +60,11 @@ async def _cleanup_loop() -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     db.init_pool()
-    if not USING_SHARED_AUTH and config.JWT_SECRET == "dev-secret-change-me":
-        log.warning("Using the default dev JWT secret; set JWT_SECRET to the User service's secret.")
+    if USING_SHARED_AUTH:
+        log.info("authentication: using shared.auth")
+    else:
+        log.warning("shared/ not found: using the local JWT fallback (JWT_SECRET must match the User service)")
+    await _ensure_schema()
     task = asyncio.create_task(_cleanup_loop())
     yield
     task.cancel()
@@ -82,6 +100,8 @@ def _ensure_not_started(info: movie_client.ShowtimeInfo) -> None:
 def health():
     if not db.ping():
         return JSONResponse(status_code=503, content={"status": "degraded", "database": "down"})
+    if not db.schema_ready:
+        return JSONResponse(status_code=503, content={"status": "degraded", "database": "schema_pending"})
     return {"status": "ok", "service": "reservation-service", "database": "up"}
 
 

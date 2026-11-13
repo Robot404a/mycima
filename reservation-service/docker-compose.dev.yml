@@ -1,6 +1,8 @@
-# Local dev for the reservation service.
-#   Database only :  docker compose up -d
-#   DB + service  :  docker compose --profile app up -d --build
+# Standalone dev setup for the reservation service only (NOT the team's system; that is the
+# docker-compose.yml at the repo root).
+#   Database only :  docker compose -f docker-compose.dev.yml up -d
+#   DB + service  :  docker compose -f docker-compose.dev.yml --profile app up -d --build
+name: reservation-service
 services:
   reservation-db:
     image: postgres:16-alpine
@@ -10,10 +12,10 @@ services:
       POSTGRES_USER: reservation
       POSTGRES_PASSWORD: reservation_dev
     ports:
-      - "5433:5432"
+      - "5433:5432"          # 5433 so it never clashes with the team's Postgres on 5432
     volumes:
       - reservation_pgdata:/var/lib/postgresql/data
-      - ./db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - ./db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro   # optional: the service also creates the tables itself
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U reservation -d reservation"]
       interval: 5s
@@ -23,16 +25,15 @@ services:
   reservation-service:
     profiles: ["app"]
     build:
-      image: mycima/reservation-service:dev
       context: ..                         # repo root, like the gateway
       dockerfile: reservation-service/Dockerfile
-    container_name: reservation-service
+    container_name: reservation-service-dev
     environment:
       DATABASE_URL: postgresql://reservation:reservation_dev@reservation-db:5432/reservation
-      JWT_SECRET: ${JWT_SECRET:-dev-secret-change-me}
+      JWT_SECRET: ${JWT_SECRET:-mycima-dev-secret-change-me-in-production}
       MOVIE_LOOKUP: ${MOVIE_LOOKUP:-stub}
     ports:
-      - "8001:8000"
+      - "8003:8000"                       # not 8001 (user-service)
     depends_on:
       reservation-db:
         condition: service_healthy

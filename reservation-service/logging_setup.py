@@ -5,7 +5,9 @@ import uuid
 
 try:
     from shared.logging_config import RequestLogMiddleware, configure_logging  # type: ignore
-except ImportError:
+except ModuleNotFoundError as _exc:
+    if _exc.name not in ("shared", "shared.logging_config"):
+        raise
     from starlette.middleware.base import BaseHTTPMiddleware
 
     def configure_logging(service: str) -> logging.Logger:

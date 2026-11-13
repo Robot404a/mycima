@@ -13,7 +13,7 @@ from psycopg import errors as pg_errors
 import config
 from movie_client import ShowtimeInfo
 
-logger = logging.getLogger("reservation")
+logger = logging.getLogger("reservation-service.service")
 
 
 class SeatsUnavailable(Exception):
