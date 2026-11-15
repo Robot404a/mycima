@@ -32,6 +32,9 @@ services:
       DATABASE_URL: postgresql://reservation:reservation_dev@reservation-db:5432/reservation
       JWT_SECRET: ${JWT_SECRET:-mycima-dev-secret-change-me-in-production}
       MOVIE_LOOKUP: ${MOVIE_LOOKUP:-stub}
+      NOTIFICATION_ENABLED: ${NOTIFICATION_ENABLED:-false}
+      NOTIFICATION_SERVICE_URL: ${NOTIFICATION_SERVICE_URL:-http://host.docker.internal:8004}
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY:-dev-internal-key-change-me}
     ports:
       - "8003:8000"                       # not 8001 (user-service)
     depends_on:

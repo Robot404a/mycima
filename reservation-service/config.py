@@ -40,3 +40,10 @@ STUB_PRICE = Decimal(os.getenv("STUB_PRICE", "8.00"))
 # Must match the secret used by the User service.
 JWT_SECRET = os.getenv("JWT_SECRET", "dev-secret-change-me")
 JWT_ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
+
+
+# Notification service (emails). Disabled by default so local runs and tests never need it.
+NOTIFICATION_ENABLED = os.getenv("NOTIFICATION_ENABLED", "false").lower() == "true"
+NOTIFICATION_SERVICE_URL = os.getenv("NOTIFICATION_SERVICE_URL", "http://notification-service:8000").rstrip("/")
+NOTIFICATION_TIMEOUT_SECONDS = float(os.getenv("NOTIFICATION_TIMEOUT_SECONDS", "3"))
+INTERNAL_API_KEY = os.getenv("INTERNAL_API_KEY", "dev-internal-key-change-me")   # same value as notification-service

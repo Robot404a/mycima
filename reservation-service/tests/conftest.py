@@ -54,8 +54,9 @@ def db_exec():
     return run
 
 
-def auth(user_id: int, role: str = "user") -> dict:
-    token = jwt.encode(
-        {"sub": str(user_id), "role": role, "exp": int(time.time()) + 3600}, "test-secret-which-is-long-enough-32b", algorithm="HS256"
-    )
+def auth(user_id: int, role: str = "user", email: str | None = None) -> dict:
+    claims = {"sub": str(user_id), "role": role, "exp": int(time.time()) + 3600}
+    if email:
+        claims["email"] = email
+    token = jwt.encode(claims, "test-secret-which-is-long-enough-32b", algorithm="HS256")
     return {"Authorization": f"Bearer {token}"}

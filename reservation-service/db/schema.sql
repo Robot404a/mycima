@@ -54,3 +54,4 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_seat_active
 
 CREATE INDEX IF NOT EXISTS idx_claims_hold    ON seat_claims (hold_id);
 CREATE INDEX IF NOT EXISTS idx_claims_booking ON seat_claims (booking_id);
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS user_email TEXT;

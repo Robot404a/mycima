@@ -13,6 +13,9 @@ from psycopg import errors as pg_errors
 import config
 from movie_client import ShowtimeInfo
 
+import movie_client
+import notification_client
+
 logger = logging.getLogger("reservation-service.service")
 
 
@@ -299,7 +302,8 @@ def list_bookings(conn, user_id=None, status=None, showtime_id=None, limit=50, o
     return [_booking_out(r) for r in rows]
 
 
-def confirm_hold(conn, user_id: int, hold_id, payment_ref: str | None) -> tuple[dict, bool]:
+def confirm_hold(conn, user_id: int, hold_id, payment_ref: str | None,
+                 email: str | None = None) -> tuple[dict, bool]:
     """Turn a live hold into a booking. Returns (booking, created). Repeating the call is harmless."""
     expired = False
     booking_id = None
@@ -324,9 +328,9 @@ def confirm_hold(conn, user_id: int, hold_id, payment_ref: str | None) -> tuple[
                 (hold_id,),
             ).fetchone()["total"]
             booking_id = conn.execute(
-                """INSERT INTO bookings (user_id, showtime_id, hold_id, total_amount, payment_ref)
-                   VALUES (%s, %s, %s, %s, %s) RETURNING id""",
-                (user_id, hold["showtime_id"], hold_id, total, payment_ref),
+                """INSERT INTO bookings (user_id, showtime_id, hold_id, total_amount, payment_ref, user_email)
+                   VALUES (%s, %s, %s, %s, %s, %s) RETURNING id""",
+                (user_id, hold["showtime_id"], hold_id, total, payment_ref, email),
             ).fetchone()["id"]
             conn.execute(
                 "UPDATE seat_claims SET status = 'booked', booking_id = %s WHERE hold_id = %s AND status = 'held'",
@@ -336,6 +340,11 @@ def confirm_hold(conn, user_id: int, hold_id, payment_ref: str | None) -> tuple[
     if expired:
         raise HTTPException(410, "Your hold expired. Please select your seats again.")
     return get_booking(conn, booking_id, user_id), True
+
+
+def booking_email(conn, booking_id) -> str | None:
+    row = conn.execute("SELECT user_email FROM bookings WHERE id = %s", (booking_id,)).fetchone()
+    return row["user_email"] if row else None
 
 
 def cancel_booking(conn, booking_id, user_id: int | None = None) -> dict:
@@ -358,6 +367,45 @@ def after_booking_confirmed(booking: dict) -> None:
     """Single place to plug in the other services once their APIs are agreed
     (e.g. tell the Notification service to send the confirmation). Must never raise."""
     logger.info("booking confirmed id=%s user=%s seats=%s", booking["id"], booking["user_id"], booking["seats"])
+
+
+
+def _notification_data(booking: dict) -> dict:
+    """Values for the email template. Looks up the movie / time; never raises."""
+    data = {"seats": booking["seats"], "total_price": f"{booking['total_amount']:.2f}"}
+    try:
+        info = movie_client.get_showtime(booking["showtime_id"])
+        data["movie_title"] = getattr(info, "movie_title", None) or getattr(info, "title", None)
+        starts_at = getattr(info, "starts_at", None)
+        data["showtime"] = starts_at.strftime("%A %d %B %Y, %H:%M") if starts_at else None
+    except Exception as exc:  # the email is still useful without the movie details
+        logger.warning("could not load showtime %s for the email: %s", booking["showtime_id"], exc)
+    return data
+
+
+def _notify(notification_type: str, booking: dict, email: str | None) -> None:
+    try:
+        notification_client.send(
+            user_id=booking["user_id"],
+            email=email,
+            type=notification_type,
+            reference_id=booking["id"],
+            data=_notification_data(booking),
+        )
+    except Exception as exc:  # must never break a booking
+        logger.warning("notification failed for booking %s: %s", booking["id"], exc)
+
+
+def after_booking_confirmed(booking: dict, email: str | None = None) -> None:
+    """Tell the Notification service to send the confirmation. Must never raise."""
+    logger.info("booking confirmed id=%s user=%s seats=%s", booking["id"], booking["user_id"], booking["seats"])
+    _notify("reservation_created", booking, email)
+
+
+def after_booking_cancelled(booking: dict, email: str | None = None) -> None:
+    """Tell the Notification service to send the cancellation. Must never raise."""
+    logger.info("booking cancelled id=%s user=%s", booking["id"], booking["user_id"])
+    _notify("reservation_cancelled", booking, email)
 
 
 # --------------------------------------------------------------------------- admin

@@ -182,9 +182,9 @@ def release_hold(hold_id: UUID, user: dict = Depends(current_user)):
 
 def _confirm(hold_id: UUID, payment_ref: str | None, user: dict) -> dict:
     with db.get_conn() as conn:
-        booking, created = service.confirm_hold(conn, user_id_of(user), hold_id, payment_ref)
+        booking, created = service.confirm_hold(conn, user_id_of(user), hold_id, payment_ref, user.get("email"))
     if created:  # after commit, and only the first time
-        service.after_booking_confirmed(booking)
+        service.after_booking_confirmed(booking, user.get("email"))
     return booking
 
 
@@ -226,7 +226,9 @@ def cancel_booking(booking_id: UUID, user: dict = Depends(current_user)):
             if exc.status_code == 409:   # showtime started: cannot cancel
                 raise
             # Movie service unavailable: do not block the cancellation
-        return service.cancel_booking(conn, booking_id, uid)
+        cancelled = service.cancel_booking(conn, booking_id, uid)
+    service.after_booking_cancelled(cancelled, user.get("email"))
+    return cancelled
 
 
 # --------------------------------------------------------------------------- admin
@@ -243,7 +245,10 @@ def admin_bookings(status: str | None = Query(None, pattern="^(confirmed|cancell
 @app.post("/admin/bookings/{booking_id}/cancel")
 def admin_cancel_booking(booking_id: UUID, _: dict = Depends(admin_user)):
     with db.get_conn() as conn:
-        return service.cancel_booking(conn, booking_id, None)
+        cancelled = service.cancel_booking(conn, booking_id, None)
+        email = service.booking_email(conn, booking_id)
+    service.after_booking_cancelled(cancelled, email)   # after the DB block, like the user cancel
+    return cancelled
 
 
 @app.get("/admin/holds")

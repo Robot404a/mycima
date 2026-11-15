@@ -1,8 +1,15 @@
+import config
+import notification_client
+
+
 from concurrent.futures import ThreadPoolExecutor
 
 from fastapi.testclient import TestClient
 
 from conftest import auth
+
+
+
 
 SHOWTIME = 10
 
@@ -213,3 +220,45 @@ def test_apply_schema_is_repeatable_and_replica_safe(client):
     with Pool(max_workers=4) as pool:                    # four "replicas" starting at once
         list(pool.map(lambda _: db.apply_schema(), range(4)))
     assert hold(client, 1, ["A1"]).status_code == 201    # tables are back and working
+
+
+# ---- notifications ------------------------------------------------------------------------
+def test_confirm_and_cancel_send_notifications(client, monkeypatch):
+    calls = []
+    monkeypatch.setattr(config, "NOTIFICATION_ENABLED", True)
+    monkeypatch.setattr(notification_client, "send", lambda **kw: calls.append(kw) or True)
+    headers = auth(1, email="user1@example.com")
+
+    h = hold(client, 1, ["A1", "A2"]).json()
+    b = client.post(f"/holds/{h['id']}/confirm", headers=headers).json()
+    client.post(f"/holds/{h['id']}/confirm", headers=headers)          # repeated confirm: no second email
+    client.post(f"/bookings/{b['id']}/cancel", headers=headers)
+
+    assert [c["type"] for c in calls] == ["reservation_created", "reservation_cancelled"]
+    assert calls[0]["email"] == "user1@example.com" and calls[0]["reference_id"] == b["id"]
+    assert calls[0]["data"]["seats"] == ["A1", "A2"]
+
+
+def test_notification_failure_never_breaks_a_booking(client, monkeypatch):
+    def boom(**kw):
+        raise RuntimeError("notification service down")
+
+    monkeypatch.setattr(config, "NOTIFICATION_ENABLED", True)
+    monkeypatch.setattr(notification_client, "send", boom)
+    h = hold(client, 1, ["B1"]).json()
+    r = client.post(f"/holds/{h['id']}/confirm", headers=auth(1, email="user1@example.com"))
+    assert r.status_code == 201 and r.json()["status"] == "confirmed"
+
+
+def test_admin_cancel_notifies_the_customer(client, monkeypatch):
+    calls = []
+    monkeypatch.setattr(config, "NOTIFICATION_ENABLED", True)
+    monkeypatch.setattr(notification_client, "send", lambda **kw: calls.append(kw) or True)
+
+    h = hold(client, 1, ["C1"]).json()
+    b = client.post(f"/holds/{h['id']}/confirm", headers=auth(1, email="user1@example.com")).json()
+    calls.clear()   # ignore the confirmation email
+
+    r = client.post(f"/admin/bookings/{b['id']}/cancel", headers=auth(99, "admin", email="admin@example.com"))
+    assert r.status_code == 200
+    assert [(c["type"], c["email"]) for c in calls] == [("reservation_cancelled", "user1@example.com")]
