@@ -1,0 +1,55 @@
+# Standalone development setup for the payment service only.
+# This is NOT the team's root docker-compose.yml; that one is owned by the team.
+#
+#   Database only : docker compose -f docker-compose.dev.yml up -d
+#   DB + service  : docker compose -f docker-compose.dev.yml --profile app up -d --build
+#
+# The service container needs a reachable Reservation Service. Point
+# RESERVATION_SERVICE_URL at it (the default hostname exists only when the
+# services share a Docker network).
+name: payment-service
+
+services:
+  payment-db:
+    image: postgres:16-alpine
+    container_name: payment-db
+    environment:
+      POSTGRES_DB: payment_db
+      POSTGRES_USER: payment_svc
+      POSTGRES_PASSWORD: payment_svc_pass
+    ports:
+      - "5434:5432"
+    volumes:
+      - payment_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U payment_svc -d payment_db"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  payment-service:
+    image: mycima-payment-service:latest
+    profiles: ["app"]
+    build:
+      context: ..
+      dockerfile: payment-service/Dockerfile
+    container_name: mycima-payment-service
+    environment:
+      SERVICE_NAME: payment-service
+      DATABASE_URL: postgresql+psycopg://payment_svc:payment_svc_pass@payment-db:5432/payment_db
+      JWT_SECRET: ${JWT_SECRET:-mycima-dev-secret-change-me-in-production}
+      JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
+      RESERVATION_SERVICE_URL: ${RESERVATION_SERVICE_URL:-http://reservation-service:8000}
+      REST_PORT: "8000"
+      GRPC_PORT: "50051"
+      PAYMENT_SIMULATION_ENABLED: ${PAYMENT_SIMULATION_ENABLED:-true}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    ports:
+      - "8004:8000"
+      - "50052:50051"
+    depends_on:
+      payment-db:
+        condition: service_healthy
+
+volumes:
+  payment_pgdata:
