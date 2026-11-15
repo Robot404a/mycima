@@ -66,6 +66,9 @@ class HallBrief(BaseModel):
     id: int
     name: str
     screen_type: str
+    rows: int | None = None
+    seats_per_row: int | None = None
+    aisle_after: list[int] = []
     total_seats: int
 
 

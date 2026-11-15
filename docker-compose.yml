@@ -40,5 +40,123 @@ services:
       postgres:
         condition: service_healthy
 
+  movie-service:
+    build:
+      context: .
+      dockerfile: movie-service/Dockerfile
+    container_name: mycima-movie-service
+    environment:
+      DATABASE_URL: postgresql+psycopg://movie_svc:movie_svc_pass@postgres:5432/movies_db
+      JWT_SECRET: ${JWT_SECRET:-mycima-dev-secret-change-me-in-production}
+      SEED_ON_STARTUP: "true"
+      SEED_DAYS: ${SEED_DAYS:-7}
+      CINEMA_TIMEZONE: Africa/Casablanca
+      POSTER_CACHE_DIR: /data/posters
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    ports:
+      - "8003:8000"
+    volumes:
+      - movie-posters:/data/posters
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  reservation-service:
+    build:
+      context: .
+      dockerfile: reservation-service/Dockerfile
+    container_name: mycima-reservation-service
+    environment:
+      DATABASE_URL: postgresql://reservation_svc:reservation_svc_pass@postgres:5432/reservation_db
+      JWT_SECRET: ${JWT_SECRET:-mycima-dev-secret-change-me-in-production}
+      MOVIE_LOOKUP: http
+      MOVIE_SERVICE_URL: http://movie-service:8000
+      HOLD_TTL_SECONDS: ${HOLD_TTL_SECONDS:-600}
+      MAX_SEATS_PER_HOLD: ${MAX_SEATS_PER_HOLD:-8}
+      CLEANUP_INTERVAL_SECONDS: 30
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    ports:
+      - "8004:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      movie-service:
+        condition: service_started
+
+  payment-service:
+    build:
+      context: .
+      dockerfile: payment-service/Dockerfile
+    container_name: mycima-payment-service
+    environment:
+      SERVICE_NAME: payment-service
+      DATABASE_URL: postgresql+psycopg://payment_svc:payment_svc_pass@postgres:5432/payment_db
+      JWT_SECRET: ${JWT_SECRET:-mycima-dev-secret-change-me-in-production}
+      JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
+      RESERVATION_SERVICE_URL: http://reservation-service:8000
+      REST_PORT: "8000"
+      GRPC_PORT: "50051"
+      PAYMENT_SIMULATION_ENABLED: ${PAYMENT_SIMULATION_ENABLED:-false}
+      DEFAULT_CURRENCY: MAD
+      SUPPORTED_CURRENCIES: MAD,USD,EUR
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    ports:
+      # Host 8004 is the reservation service, so the payment REST API gets 8006.
+      - "8006:8000"     # REST (also used through the gateway)
+      - "50052:50051"   # gRPC, host access for local debugging
+    depends_on:
+      postgres:
+        condition: service_healthy
+      reservation-service:
+        condition: service_started
+
+  gateway:
+    build:
+      context: .
+      dockerfile: gateway/Dockerfile
+    container_name: mycima-gateway
+    environment:
+      USER_SERVICE_URL: http://user-service:8000
+      MOVIE_SERVICE_URL: http://movie-service:8000
+      RESERVATION_SERVICE_URL: http://reservation-service:8000
+      PAYMENT_SERVICE_URL: http://payment-service:8000
+      NOTIFICATION_SERVICE_URL: http://notification-service:8000
+      AI_SERVICE_URL: http://ai-assistant-service:8000
+      JWT_SECRET: ${JWT_SECRET:-mycima-dev-secret-change-me-in-production}
+      JWT_ALGORITHM: HS256
+      CORS_ORIGINS: http://localhost:5173,http://localhost:3000
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    ports:
+      - "8000:8000"
+    depends_on:
+      - user-service
+      - movie-service
+      - reservation-service
+      - payment-service
+      - ai-assistant-service
+
+  ai-assistant-service:
+    build:
+      context: .
+      dockerfile: ai-assistant-service/Dockerfile
+    container_name: mycima-ai-assistant-service
+    env_file:
+      - ./ai-assistant-service/.env
+    environment:
+      DATABASE_URL: postgresql+psycopg2://ai_svc:ai_svc_pass@postgres:5432/ai_assistant_db
+      JWT_SECRET: ${JWT_SECRET:-mycima-dev-secret-change-me-in-production}
+      JWT_ALGORITHM: HS256
+      GATEWAY_INTERNAL_URL: http://gateway:8000/api
+      CINEMA_TIMEZONE: Africa/Casablanca
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    ports:
+      - "8005:8000"
+    # The gateway depends on this service, so we cannot depend on it back (compose cycle).
+    # Calls to the gateway are retried/503-handled at runtime.
+    depends_on:
+      postgres:
+        condition: service_healthy
+
 volumes:
   pgdata:
+  movie-posters:

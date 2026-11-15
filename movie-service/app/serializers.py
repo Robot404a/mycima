@@ -123,6 +123,9 @@ def showtime_out(showtime: Showtime) -> dict:
             "id": hall.id,
             "name": hall.name,
             "screen_type": hall.screen_type,
+            "rows": hall.rows,
+            "seats_per_row": hall.seats_per_row,
+            "aisle_after": list(hall.aisle_after or []),
             "total_seats": hall.total_seats,
         }
         if hall

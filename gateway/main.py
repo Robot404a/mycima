@@ -23,12 +23,20 @@ MOVIE_SERVICE_URL = os.getenv("MOVIE_SERVICE_URL", "http://movie-service:8000").
 NOTIFICATION_SERVICE_URL = os.getenv("NOTIFICATION_SERVICE_URL", "http://notification-service:8000").rstrip("/")
 AI_SERVICE_URL = os.getenv("AI_SERVICE_URL", "http://ai-assistant-service:8000").rstrip("/")
 RESERVATION_SERVICE_URL = os.getenv("RESERVATION_SERVICE_URL", "http://reservation-service:8000").rstrip("/")
+PAYMENT_SERVICE_URL = os.getenv("PAYMENT_SERVICE_URL", "http://payment-service:8000").rstrip("/")
 GATEWAY_TIMEOUT = float(os.getenv("GATEWAY_TIMEOUT_SECONDS", "15"))
 AI_TIMEOUT = float(os.getenv("AI_TIMEOUT_SECONDS", "90"))
 CONFIRM_TIMEOUT = float(os.getenv("CONFIRM_TIMEOUT_SECONDS", "60"))
 CONNECT_TIMEOUT = float(os.getenv("GATEWAY_CONNECT_TIMEOUT_SECONDS", "3.5"))
 
-PROTECTED_PREFIXES = ("/api/users", "/api/holds", "/api/bookings", "/api/notifications", "/api/assistant")
+PROTECTED_PREFIXES = (
+    "/api/users",
+    "/api/holds",
+    "/api/bookings",
+    "/api/payments",
+    "/api/notifications",
+    "/api/assistant",
+)
 PUBLIC_MOVIE_PREFIXES = ("/api/movies", "/api/halls", "/api/media", "/media")
 HOP_BY_HOP = {
     "connection",
@@ -187,6 +195,12 @@ def route_backend(path: str, method: str) -> tuple[str, str] | None:
             return "reservation", upstream
         if section == "notifications":
             return "notification", upstream
+        if section == "payments":
+            # The payment service exposes GET /admin/stats, but the reservation service
+            # already owns /api/admin/stats: expose the payment one under its own prefix.
+            if upstream.rstrip("/") == "/admin/payments/stats":
+                return "payment", "/admin/stats"
+            return "payment", upstream
         return None
 
     if upstream.startswith("/movies") or upstream.startswith("/halls") or upstream.startswith("/media") or upstream.startswith("/cinemas"):
@@ -199,6 +213,9 @@ def route_backend(path: str, method: str) -> tuple[str, str] | None:
         if len(parts) >= 3 and parts[2] in {"seats", "suggest", "availability"}:
             return "reservation", upstream
         return "movie", upstream
+
+    if upstream.startswith("/payments"):
+        return "payment", upstream
 
     if upstream.startswith("/holds") or upstream.startswith("/bookings"):
         return "reservation", upstream
@@ -225,7 +242,16 @@ def timeout_for(upstream: str, method: str) -> float:
 
 def forward_headers(request: Request) -> dict:
     headers = {}
-    for key in ("authorization", "accept", "accept-language", "content-type", "user-agent"):
+    for key in (
+        "authorization",
+        "accept",
+        "accept-language",
+        "content-type",
+        "user-agent",
+        # Required by the payment service on POST /payments (and its gRPC bridge).
+        "idempotency-key",
+        "x-payment-method",
+    ):
         value = request.headers.get(key)
         if value:
             headers[key] = value
@@ -253,6 +279,7 @@ def service_url(service: str) -> str:
         "user": USER_SERVICE_URL,
         "movie": MOVIE_SERVICE_URL,
         "reservation": RESERVATION_SERVICE_URL,
+        "payment": PAYMENT_SERVICE_URL,
         "notification": NOTIFICATION_SERVICE_URL,
         "ai": AI_SERVICE_URL,
     }[service]
@@ -398,6 +425,7 @@ async def health_upstreams():
         "user": USER_SERVICE_URL,
         "movie": MOVIE_SERVICE_URL,
         "reservation": RESERVATION_SERVICE_URL,
+        "payment": PAYMENT_SERVICE_URL,
         "notification": NOTIFICATION_SERVICE_URL,
         "ai": AI_SERVICE_URL,
     }
