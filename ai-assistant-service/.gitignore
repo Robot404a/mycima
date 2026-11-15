@@ -1,0 +1,10 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Local secrets (LLM key) and local SQLite database
+.env
+*.db
+
+.pytest_cache/
