@@ -509,14 +509,17 @@ SQLite is suitable for a local demonstration and for the test suite:
 ```powershell
 $env:DATABASE_URL = "sqlite:///C:/Users/me/payment_dev.db"
 $env:JWT_SECRET = "mycima-dev-secret-change-me-in-production"
-$env:RESERVATION_SERVICE_URL = "http://127.0.0.1:8001"
+$env:RESERVATION_SERVICE_URL = "http://127.0.0.1:8004"
 $env:PAYMENT_SIMULATION_ENABLED = "true"
-python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
+python -m uvicorn app.main:app --host 0.0.0.0 --port 8014
 ```
 
-- REST/docs: <http://localhost:8000/docs>
+- REST/docs: <http://localhost:8014/docs>
 - gRPC: `localhost:50051`
-- Health: <http://localhost:8000/health>
+- Health: <http://localhost:8014/health>
+
+Port `8014` avoids the gateway on `8000`; gRPC stays on its default `50051`
+(the full stack publishes payment gRPC on host `50052`).
 
 ### Option B — PostgreSQL via the standalone dev Compose file
 
@@ -524,8 +527,8 @@ python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
 docker compose -f docker-compose.dev.yml up -d
 $env:DATABASE_URL = "postgresql+psycopg://payment_svc:payment_svc_pass@localhost:5434/payment_db"
 $env:JWT_SECRET = "mycima-dev-secret-change-me-in-production"
-$env:RESERVATION_SERVICE_URL = "http://127.0.0.1:8001"
-python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
+$env:RESERVATION_SERVICE_URL = "http://127.0.0.1:8004"
+python -m uvicorn app.main:app --host 0.0.0.0 --port 8014
 ```
 
 The local database is on host port `5434` to avoid clashing with the team's
@@ -544,12 +547,16 @@ Build from the **repository root** because the image imports the repository's
 
 ```powershell
 docker build -f payment-service/Dockerfile -t mycima-payment-service .
-docker run --rm -p 8000:8000 -p 50051:50051 `
+docker run --rm -p 8014:8000 -p 50152:50051 `
   -e DATABASE_URL="postgresql+psycopg://payment_svc:payment_svc_pass@host.docker.internal:5434/payment_db" `
   -e JWT_SECRET="mycima-dev-secret-change-me-in-production" `
-  -e RESERVATION_SERVICE_URL="http://host.docker.internal:8001" `
+  -e RESERVATION_SERVICE_URL="http://host.docker.internal:8004" `
+  --add-host host.docker.internal:host-gateway `
   mycima-payment-service
 ```
+
+Host ports `8014` / `50152` keep this container clear of the full stack
+(`8006` / `50052`) and of the Reservation Service on `8004`.
 
 The image exposes `8000` (REST) and `50051` (gRPC), installs
 `requirements.txt`, and honours `REST_PORT`, `REST_HOST`, `GRPC_PORT` and
@@ -561,9 +568,11 @@ Standalone DB + service:
 docker compose -f docker-compose.dev.yml --profile app up -d --build
 ```
 
-That maps the service to host ports `8004` (REST) and `50052` (gRPC). The
-container's `RESERVATION_SERVICE_URL` must point to a Reservation Service on the
-same Docker network (or an override URL).
+That maps the service to host ports `8014` (REST), `50152` (gRPC) and PostgreSQL
+to `5434`, so it can run alongside the root stack. The container's
+`RESERVATION_SERVICE_URL` defaults to `http://host.docker.internal:8004`, which
+reaches a Reservation Service published by the root stack; override it when
+yours runs elsewhere.
 
 ---
 
@@ -911,7 +920,7 @@ The service creates its table itself at startup.
       GRPC_PORT: "50051"
       PAYMENT_SIMULATION_ENABLED: ${PAYMENT_SIMULATION_ENABLED:-false}
     ports:
-      - "8004:8000"     # host access for local debugging
+      - "8006:8000"     # REST (8004 is the reservation service)
       - "50052:50051"   # optional host access for gRPC clients
     depends_on:
       postgres:

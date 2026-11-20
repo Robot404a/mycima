@@ -1,18 +1,25 @@
 # Standalone development setup for the payment service only.
-# This is NOT the team's root docker-compose.yml; that one is owned by the team.
+# This is NOT the team's root docker-compose.yml; that one runs the whole system
+# and already contains a payment-service entry.
 #
 #   Database only : docker compose -f docker-compose.dev.yml up -d
 #   DB + service  : docker compose -f docker-compose.dev.yml --profile app up -d --build
 #
-# The service container needs a reachable Reservation Service. Point
-# RESERVATION_SERVICE_URL at it (the default hostname exists only when the
-# services share a Docker network).
+# Host ports are deliberately different from the root stack so both can run at
+# the same time:
+#   REST 8014 (root stack: 8006), gRPC 50152 (root stack: 50052),
+#   PostgreSQL 5434 (root stack: 5432).
+#
+# The standalone container cannot resolve the root stack's "reservation-service"
+# DNS name. By default it reaches the Reservation Service through the host port
+# published by the root stack (8004). Override RESERVATION_SERVICE_URL when your
+# Reservation Service is elsewhere.
 name: payment-service
 
 services:
   payment-db:
     image: postgres:16-alpine
-    container_name: payment-db
+    container_name: payment-dev-db
     environment:
       POSTGRES_DB: payment_db
       POSTGRES_USER: payment_svc
@@ -33,23 +40,36 @@ services:
     build:
       context: ..
       dockerfile: payment-service/Dockerfile
-    container_name: mycima-payment-service
+    container_name: mycima-payment-service-dev
     environment:
       SERVICE_NAME: payment-service
       DATABASE_URL: postgresql+psycopg://payment_svc:payment_svc_pass@payment-db:5432/payment_db
       JWT_SECRET: ${JWT_SECRET:-mycima-dev-secret-change-me-in-production}
       JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
-      RESERVATION_SERVICE_URL: ${RESERVATION_SERVICE_URL:-http://reservation-service:8000}
+      RESERVATION_SERVICE_URL: ${RESERVATION_SERVICE_URL:-http://host.docker.internal:8004}
       REST_PORT: "8000"
       GRPC_PORT: "50051"
       PAYMENT_SIMULATION_ENABLED: ${PAYMENT_SIMULATION_ENABLED:-true}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
     ports:
-      - "8004:8000"
-      - "50052:50051"
+      - "8014:8000"      # REST (root stack uses 8006)
+      - "50152:50051"    # gRPC (root stack uses 50052)
+    extra_hosts:
+      # Makes host.docker.internal resolvable on Linux as well as Docker Desktop.
+      - "host.docker.internal:host-gateway"
     depends_on:
       payment-db:
         condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)"
+      interval: 30s
+      timeout: 5s
+      start_period: 15s
+      retries: 3
 
 volumes:
   payment_pgdata:
