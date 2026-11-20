@@ -51,16 +51,27 @@ def _mark_failed(slug: str) -> None:
         _FAILED[slug] = time.monotonic()
 
 
+def _poster_url(poster_path: str) -> str:
+    """Poster sources are TMDB paths, but a full URL is also accepted."""
+    if poster_path.startswith(("http://", "https://")):
+        return poster_path
+    return settings.poster_base_url + poster_path
+
+
 def _download_poster(slug: str, poster_path: str) -> Path | None:
-    if not poster_path.startswith("/"):
+    if not poster_path.startswith(("/", "http://", "https://")):
         return None
     if not _can_retry(slug):
         return None
     target = _cache_file(slug)
     try:
         settings.media_cache_dir.mkdir(parents=True, exist_ok=True)
-        with httpx.Client(timeout=settings.poster_timeout_seconds, follow_redirects=True) as client:
-            response = client.get(settings.poster_base_url + poster_path)
+        with httpx.Client(
+            timeout=settings.poster_timeout_seconds,
+            follow_redirects=True,
+            headers={"User-Agent": "MyCima/1.0 (cinema booking project)"},
+        ) as client:
+            response = client.get(_poster_url(poster_path))
         if response.status_code != 200 or not response.content:
             _mark_failed(slug)
             return None

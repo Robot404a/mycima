@@ -37,6 +37,8 @@ class UserOut(BaseModel):
     email: EmailStr
     full_name: str
     role: str
+    phone: str | None = None
+    is_active: bool = True
     created_at: datetime
 
 
@@ -63,6 +65,13 @@ class UserUpdate(BaseModel):
 
 class RoleUpdate(BaseModel):
     role: Literal["user", "admin"]
+
+
+class AdminUserUpdate(BaseModel):
+    role: Literal["user", "admin"] | None = None
+    is_active: bool | None = None
+    full_name: str | None = Field(default=None, min_length=2, max_length=120)
+    phone: str | None = Field(default=None, max_length=40)
 
 
 class UserListResponse(BaseModel):

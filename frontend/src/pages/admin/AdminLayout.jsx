@@ -44,12 +44,12 @@ export default function AdminLayout() {
     <div className={`admin-shell ${open ? "is-open" : ""}`}>
       <aside className="admin-sidebar" aria-label="Control room navigation">
         <div className="admin-sidebar-head">
-          <Link to="/" className="brand" aria-label="Nocturne home">
+          <Link to="/" className="brand" aria-label="MyCima home">
             <span className="brand-mark" aria-hidden="true">
               <span />
             </span>
             <span className="brand-word">
-              NOCTURNE
+              MYCIMA
               <small>Control room</small>
             </span>
           </Link>
@@ -111,7 +111,7 @@ export default function AdminLayout() {
             <Menu size={19} />
           </button>
           <div className="admin-topbar-copy">
-            <span className="eyebrow">Nocturne operations</span>
+            <span className="eyebrow">MyCima operations</span>
             <span className="admin-topbar-date">
               {new Intl.DateTimeFormat("en-GB", {
                 weekday: "long",

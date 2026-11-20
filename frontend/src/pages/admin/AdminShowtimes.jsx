@@ -66,12 +66,19 @@ function emptyForm(movies, halls) {
   };
 }
 
+function formatOption(value) {
+  const key = String(value || "").toUpperCase();
+  if (key === "3D" || key === "THREE_D") return "THREE_D";
+  if (key === "IMAX") return "IMAX";
+  return "STANDARD";
+}
+
 function toForm(showtime) {
   return {
     movie_id: String(showtime.movie_id),
     hall_id: String(showtime.hall?.id),
     starts_at: cinemaInputValue(showtime.starts_at),
-    format: showtime.format,
+    format: formatOption(showtime.format_value || showtime.format),
     language: showtime.language || "English",
     base_price: String(showtime.base_price),
     is_active: showtime.is_active,

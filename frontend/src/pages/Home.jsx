@@ -11,7 +11,7 @@ import { EmptyState, ErrorState, Poster, Skeleton } from "../components/Feedback
 const GENRES = ["All", "Sci-Fi", "Drama", "Thriller", "Comedy", "Romance", "Animation", "Crime"];
 
 function openConcierge(prompt) {
-  window.dispatchEvent(new CustomEvent("nocturne:assistant-open", { detail: { prompt } }));
+  window.dispatchEvent(new CustomEvent("mycima:assistant-open", { detail: { prompt } }));
 }
 
 function Hero({ featured, nowShowing }) {
@@ -113,11 +113,11 @@ export default function Home() {
   const [query, setQuery] = useState("");
 
   const nowLoader = useCallback(
-    () => api("/movies", { params: { status: "now_showing", limit: 50 }, auth: false }),
+    () => api("/movies", { params: { now_showing: true, limit: 100 }, auth: false }),
     [],
   );
   const comingLoader = useCallback(
-    () => api("/movies", { params: { status: "coming_soon", limit: 20 }, auth: false }),
+    () => api("/movies", { params: { now_showing: false, limit: 20 }, auth: false }),
     [],
   );
   const featuredLoader = useCallback(() => api("/movies/featured", { auth: false }), []);
@@ -156,7 +156,7 @@ export default function Home() {
           {Array.from({ length: 2 }).map((_, index) => (
             <span key={index}>
               Now showing <i>·</i> Casablanca <i>·</i> Late screenings every Thursday <i>·</i>{" "}
-              IMAX &amp; Dolby Atmos <i>·</i> Curated by Nocturne <i>·</i>
+              IMAX &amp; Dolby Atmos <i>·</i> Curated by MyCima <i>·</i>
             </span>
           ))}
         </div>
@@ -241,7 +241,8 @@ export default function Home() {
         )}
       </section>
 
-      <section className="section section--split" id="coming-soon">
+      {comingItems.length ? (
+        <section className="section section--split" id="coming-soon">
         <div className="section-head section-head--stacked">
           <span className="eyebrow">In the distance</span>
           <h2>
@@ -264,11 +265,12 @@ export default function Home() {
             ))}
           </div>
         )}
-      </section>
+        </section>
+      ) : null}
 
       <section className="experience-band">
         <div className="experience-copy">
-          <span className="eyebrow">The Nocturne standard</span>
+          <span className="eyebrow">The MyCima standard</span>
           <h2>
             Built for the <em>dark</em>.
           </h2>
@@ -299,7 +301,7 @@ export default function Home() {
               Casablanca deserves a cinema that stays dark when the lights come up. That’s the
               room we built.
             </p>
-            <small>The Nocturne standard</small>
+            <small>The MyCima standard</small>
             <small className="experience-credit">
               Cinema hall · Lichtburg Essen, photo by Tuxyso / Wikimedia Commons, CC BY-SA 4.0
             </small>
@@ -381,7 +383,7 @@ export default function Home() {
             I'm in the mood for a comedy tomorrow evening, 2 seats together.
           </div>
           <div className="preview-bubble preview-bubble--bot">
-            I found <strong>Everything Everywhere All at Once</strong> at Nocturne Central, tomorrow
+            I found <strong>Everything Everywhere All at Once</strong> at MyCima Central, tomorrow
             at 21:30. Two seats in row F, 160 MAD total. Shall I hold them?
           </div>
           <div className="preview-tag">

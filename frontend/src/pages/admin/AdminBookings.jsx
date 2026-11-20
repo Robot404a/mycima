@@ -13,6 +13,7 @@ import {
   Wallet,
 } from "lucide-react";
 import { api } from "../../lib/api";
+import { hydrateAdminActivity } from "../../lib/booking";
 import { useApi, useDocumentTitle } from "../../lib/hooks";
 import { formatDateLong, formatTime, money, relativeTime, seatList } from "../../lib/format";
 import { ErrorState, PageLoader } from "../../components/Feedback";
@@ -51,7 +52,7 @@ function downloadCsv(bookings) {
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
-  link.download = `nocturne-bookings-${new Date().toISOString().slice(0, 10)}.csv`;
+  link.download = `mycima-bookings-${new Date().toISOString().slice(0, 10)}.csv`;
   document.body.appendChild(link);
   link.click();
   link.remove();
@@ -65,6 +66,20 @@ function DetailRow({ label, children }) {
       <strong>{children}</strong>
     </div>
   );
+}
+
+function SeatChips({ seats = [], currency }) {
+  return (seats || []).map((seat) => {
+    const label = typeof seat === "string" ? seat : seat.seat_id;
+    const category = typeof seat === "string" ? "regular" : (seat.category || "regular").toLowerCase();
+    const price = typeof seat === "string" ? null : seat.price;
+    return (
+      <span key={label} className={`seat-chip seat-chip--${category}`}>
+        {label}
+        {price != null ? <small>{money(price, currency)}</small> : null}
+      </span>
+    );
+  });
 }
 
 function BookingDetailModal({ booking, onClose }) {
@@ -127,12 +142,7 @@ function BookingDetailModal({ booking, onClose }) {
           ) : null}
         </div>
         <div className="admin-detail-seats">
-          {(booking.seats || []).map((seat) => (
-            <span key={seat.seat_id} className={`seat-chip seat-chip--${(seat.category || "regular").toLowerCase()}`}>
-              {seat.seat_id}
-              <small>{money(seat.price, booking.currency)}</small>
-            </span>
-          ))}
+          <SeatChips seats={booking.seats} currency={booking.currency} />
         </div>
       </div>
     </Modal>
@@ -176,12 +186,7 @@ function HoldDetailModal({ hold, onClose }) {
           <DetailRow label="Created">{formatDateLong(hold.created_at)}</DetailRow>
         </div>
         <div className="admin-detail-seats">
-          {(hold.seats || []).map((seat) => (
-            <span key={seat.seat_id} className={`seat-chip seat-chip--${(seat.category || "regular").toLowerCase()}`}>
-              {seat.seat_id}
-              <small>{money(seat.price, hold.currency)}</small>
-            </span>
-          ))}
+          <SeatChips seats={hold.seats} currency={hold.currency} />
         </div>
       </div>
     </Modal>
@@ -201,7 +206,7 @@ export default function AdminBookings() {
       api("/admin/bookings", { params: { limit: 300 } }),
       api("/admin/holds", { params: { limit: 200 } }),
     ]);
-    return { bookings: bookings.items || [], holds: holds.items || [] };
+    return hydrateAdminActivity(bookings.bookings || [], holds.holds || []);
   }, []);
   const { data, error, loading, reload, refreshing } = useApi(loader, [], { interval: 30000 });
 

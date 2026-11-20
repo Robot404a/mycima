@@ -6,6 +6,7 @@ INSERT succeed and the other raises UniqueViolation, which we turn into a 409.
 """
 import logging
 import re
+from decimal import Decimal
 
 from fastapi import HTTPException
 from psycopg import errors as pg_errors
@@ -69,6 +70,32 @@ def expire_holds(conn, showtime_id: int | None = None) -> int:
 
 
 # --------------------------------------------------------------------------- seats
+def seat_category(info: ShowtimeInfo, label: str) -> str:
+    """The hall's seat editor is authoritative; otherwise use the default VIP band."""
+    published = info.categories or {}
+    if published:
+        return published.get(label, "REGULAR")
+    row = label.rstrip("0123456789")
+    if row not in info.rows:
+        return "REGULAR"
+    start = min(
+        int(len(info.rows) * config.VIP_BAND_START_RATIO),
+        max(0, len(info.rows) - config.VIP_BAND_ROWS),
+    )
+    index = info.rows.index(row)
+    return "VIP" if start <= index < start + config.VIP_BAND_ROWS else "REGULAR"
+
+
+def seat_price(info: ShowtimeInfo, label: str) -> Decimal:
+    multiplier = {
+        "VIP": config.VIP_PRICE_MULTIPLIER,
+        "VVIP": config.VVIP_PRICE_MULTIPLIER,
+    }.get(seat_category(info, label))
+    if multiplier:
+        return (info.price * multiplier).quantize(Decimal("0.01"))
+    return info.price
+
+
 def taken_seats(conn, showtime_id: int) -> dict[str, dict]:
     rows = conn.execute(
         f"""
@@ -92,6 +119,8 @@ def seat_map(conn, info: ShowtimeInfo, user_id: int | None) -> dict:
                 "label": label,
                 "row": row,
                 "number": number,
+                "category": seat_category(info, label),
+                "price": float(seat_price(info, label)),
                 "status": "available" if claim is None else ("booked" if claim["status"] == "booked" else "held"),
                 "mine": bool(claim and user_id is not None and claim["user_id"] == user_id),
             })
@@ -132,15 +161,32 @@ def availability(info: ShowtimeInfo, counts: dict[str, int]) -> dict:
     }
 
 
-def suggest_seats(info: ShowtimeInfo, unavailable: set[str], count: int, limit: int = 3) -> list[dict]:
-    """Best groups of `count` adjacent free seats: close to the middle of the hall, a bit behind the centre row."""
+def suggest_seats(
+    info: ShowtimeInfo,
+    unavailable: set[str],
+    count: int,
+    limit: int = 3,
+    categories: set[str] | None = None,
+    rows: set[str] | None = None,
+) -> list[dict]:
+    """Best groups of `count` adjacent free seats: close to the middle of the hall, a bit behind the centre row.
+
+    `categories` restricts the result to groups whose seats all belong to one of those seat
+    classes (REGULAR / VIP / VVIP), so a guest asking for standard seats is never offered a
+    gold seat just because it sits on the sweet spot row. `rows` restricts the result to the
+    named rows, so a guest asking for row A is never answered with a row D suggestion.
+    """
     center = (info.seats_per_row + 1) / 2
     target_row = (len(info.rows) - 1) * 0.6
     candidates = []
     for ri, row in enumerate(info.rows):
+        if rows and row.upper() not in rows:
+            continue
         for start in range(1, info.seats_per_row - count + 2):
             group = [f"{row}{n}" for n in range(start, start + count)]
             if any(s in unavailable for s in group):
+                continue
+            if categories and any(seat_category(info, s) not in categories for s in group):
                 continue
             middle = start + (count - 1) / 2
             score = abs(middle - center) + 1.5 * abs(ri - target_row)
@@ -150,7 +196,14 @@ def suggest_seats(info: ShowtimeInfo, unavailable: set[str], count: int, limit: 
     for score, _, _, group, row in candidates:
         if used.intersection(group):
             continue  # don't offer overlapping suggestions
-        chosen.append({"row": row, "seats": group, "score": round(score, 2)})
+        chosen.append(
+            {
+                "row": row,
+                "seats": group,
+                "score": round(score, 2),
+                "category": seat_category(info, group[0]),
+            }
+        )
         used.update(group)
         if len(chosen) == limit:
             break
@@ -230,7 +283,7 @@ def create_hold(conn, user_id: int, info: ShowtimeInfo, labels: list[str]) -> di
             with conn.cursor() as cur:
                 cur.executemany(
                     "INSERT INTO seat_claims (showtime_id, seat_label, hold_id, price) VALUES (%s, %s, %s, %s)",
-                    [(info.id, label, hold["id"], info.price) for label in labels],
+                    [(info.id, label, hold["id"], seat_price(info, label)) for label in labels],
                 )
     except pg_errors.UniqueViolation:
         rows = conn.execute(

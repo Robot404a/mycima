@@ -1,7 +1,7 @@
 @import "./styles-pages.css";
 
 /* ============================================================
-   NOCTURNE — design tokens & global foundation
+   MYCIMA — design tokens & global foundation
    ============================================================ */
 
 :root {
@@ -3365,6 +3365,142 @@ p {
 
 [data-theme="light"] .footer .brand-word small {
   color: rgba(246, 241, 230, 0.45);
+}
+
+/* Control room surfaces follow the light tokens instead of staying near-black. */
+
+/* The auth visual stays a dark room, so it keeps its own light ink. */
+
+[data-theme="light"] .auth-visual {
+  --cream: #f6f1e6;
+  --cream-soft: #ece5d8;
+  --cream-dim: #d2c8b6;
+  --muted: rgba(246, 241, 230, 0.74);
+  --muted-2: rgba(246, 241, 230, 0.52);
+  --line: rgba(246, 241, 230, 0.16);
+  --line-strong: rgba(246, 241, 230, 0.24);
+  --gold: #c9a45c;
+}
+
+[data-theme="light"] .admin-shell {
+  background:
+    radial-gradient(900px 520px at 88% -12%, rgba(150, 112, 44, 0.1), transparent 62%),
+    var(--bg);
+}
+
+[data-theme="light"] .admin-sidebar {
+  border-right-color: var(--line);
+  background:
+    radial-gradient(360px 200px at 10% 0%, rgba(150, 112, 44, 0.08), transparent 65%),
+    rgba(251, 247, 239, 0.98);
+}
+
+[data-theme="light"] .admin-topbar {
+  border-bottom-color: var(--line);
+  background: rgba(251, 247, 239, 0.94);
+}
+
+[data-theme="light"] .admin-nav-link:hover {
+  background: rgba(25, 22, 17, 0.05);
+}
+
+[data-theme="light"] .admin-nav-link.is-active {
+  background: linear-gradient(90deg, rgba(150, 112, 44, 0.16), rgba(150, 112, 44, 0.04));
+}
+
+[data-theme="light"] .admin-card,
+[data-theme="light"] .kpi-card,
+[data-theme="light"] .admin-table-wrap,
+[data-theme="light"] .admin-toolbar,
+[data-theme="light"] .admin-detail,
+[data-theme="light"] .hall-editor,
+[data-theme="light"] .admin-search,
+[data-theme="light"] .admin-hold-list,
+[data-theme="light"] .donut-hole {
+  border-color: var(--line);
+  background: #fffdf8;
+}
+
+[data-theme="light"] .admin-table th {
+  background: rgba(25, 22, 17, 0.04);
+  color: var(--muted);
+}
+
+[data-theme="light"] .admin-table tbody tr:hover,
+[data-theme="light"] .admin-hold-list li:hover {
+  background: rgba(25, 22, 17, 0.035);
+}
+
+[data-theme="light"] .admin-live {
+  background: rgba(47, 125, 98, 0.1);
+}
+
+[data-theme="light"] .admin-role-chip {
+  background: rgba(150, 112, 44, 0.12);
+  color: var(--gold-deep);
+}
+
+/* ============================================================
+   Ticket printing: only the ticket reaches the paper
+   ============================================================ */
+
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 14mm;
+  }
+
+  html,
+  body {
+    background: #fff !important;
+    color: #111 !important;
+  }
+
+  .skip-link,
+  .navbar,
+  .footer,
+  .assistant-fab,
+  .assistant-panel,
+  .booking-topbar,
+  .booking-success,
+  .ticket-actions,
+  .ticket-lower,
+  .modal-backdrop,
+  .toast-stack {
+    display: none !important;
+  }
+
+  .site-main,
+  .ticket-page.page,
+  .page {
+    margin: 0 !important;
+    padding: 0 !important;
+    max-width: none !important;
+    background: #fff !important;
+  }
+
+  .ticket-wrap {
+    display: block !important;
+    margin: 0 !important;
+    gap: 0 !important;
+  }
+
+  .cinema-ticket {
+    width: 100% !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .cinema-ticket * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .ticket-stub {
+    break-inside: avoid;
+  }
 }
 
 [data-theme="light"] .date-card.is-active small,

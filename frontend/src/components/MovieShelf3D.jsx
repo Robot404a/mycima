@@ -44,7 +44,7 @@ function usePosterTexture(url, title) {
     ctx.fillText("N O C T U R N E", 260, 82);
     ctx.fillStyle = "#f4f1e8";
     ctx.font = "400 48px Georgia, serif";
-    const lines = wrapText(ctx, title || "Nocturne", 400, 4);
+    const lines = wrapText(ctx, title || "MyCima", 400, 4);
     lines.forEach((line, index) => {
       ctx.fillText(line, 260, 360 + index * 58);
     });

@@ -123,7 +123,7 @@ Real cinemas and real films, inserted automatically at startup
   Once, The Godfather, Mad Max: Fury Road, Get Out, The Shawshank Redemption,
   Spider-Man: Across the Spider-Verse, Top Gun: Maverick, Knives Out, Coco, The Matrix,
   Barbie, John Wick: Chapter 4, Amélie, Les Chevaux de Dieu, Ali Zaoua, Casanegra.
-- **Showtimes** for the next `SEED_DAYS` days (default 7), 4 slots a day per hall
+- **Showtimes** for the next `SEED_DAYS` days (default 10), 4 slots a day per hall
   (11:30, 15:30, 19:30, 23:30 cinema local time), conflict-free by construction.
   Prices: 50 MAD standard, 80 MAD premium, 90 MAD IMAX, 130 MAD VIP.
 
@@ -193,7 +193,7 @@ The gateway already targets this service with
 | `JWT_SECRET` | `dev-secret-change-me` | Shared secret with the user service / gateway |
 | `JWT_ALGORITHM` | `HS256` | Token algorithm |
 | `SEED_ON_STARTUP` | `true` | Seed catalog + showtimes on boot |
-| `SEED_DAYS` | `7` | Days of showtimes to generate |
+| `SEED_DAYS` | `10` | Days of showtimes to generate |
 | `CINEMA_TIMEZONE` | `Africa/Casablanca` | Timezone of showtime wall-clock times |
 | `POSTER_CACHE_DIR` | `./media_cache` | Where downloaded posters are stored |
 | `POSTER_BASE_URL` | `https://image.tmdb.org/t/p/w500` | Poster CDN base URL |

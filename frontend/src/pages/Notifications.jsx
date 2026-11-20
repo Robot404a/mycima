@@ -245,8 +245,8 @@ export default function Notifications() {
           <div className="notifications-note">
             <TriangleAlert size={15} />
             <p>
-              Notifications are delivered by the notification service over RabbitMQ. If this service
-              is offline, events wait in a durable queue and arrive when it reconnects.
+              Emails are rendered and stored by the notification service. If the mail server is
+              unavailable, failed messages are retried automatically and never block a booking.
             </p>
           </div>
         </>

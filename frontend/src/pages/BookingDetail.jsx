@@ -24,6 +24,7 @@ import {
   seatList,
 } from "../lib/format";
 import { ErrorState, PageLoader, Poster, Spinner } from "../components/Feedback";
+import { fetchShowtime, normalizeBooking } from "../lib/booking";
 import { Modal } from "../components/Modal";
 import { useToast } from "../context/ToastContext";
 
@@ -38,7 +39,7 @@ function hashString(value) {
 
 function TicketCode({ value, size = 29 }) {
   const cells = useMemo(() => {
-    const seed = hashString(value || "nocturne");
+    const seed = hashString(value || "mycima");
     let state = seed || 1;
     const next = () => {
       state ^= state << 13;
@@ -102,13 +103,13 @@ function downloadCalendar(booking) {
   const lines = [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
-    "PRODID:-//Nocturne//Cinema Booking//EN",
+    "PRODID:-//MyCima//Cinema Booking//EN",
     "BEGIN:VEVENT",
-    `UID:${booking.id}@nocturne.ma`,
+    `UID:${booking.id}@mycima.ma`,
     `DTSTAMP:${icsDate(new Date())}`,
     `DTSTART:${icsDate(start)}`,
     `DTEND:${icsDate(end)}`,
-    `SUMMARY:${movie.title || "Nocturne film"}`,
+    `SUMMARY:${movie.title || "MyCima film"}`,
     `LOCATION:${[cinema.name, hall.name, cinema.address].filter(Boolean).join(", ").replace(/,/g, "\\,")}`,
     `DESCRIPTION:${`Seats ${seats}. Booking ${booking.reference}. ${movie.title || ""}`.replace(/,/g, "\\,")}`,
     "END:VEVENT",
@@ -118,7 +119,7 @@ function downloadCalendar(booking) {
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
-  link.download = `nocturne-${booking.reference}.ics`;
+  link.download = `mycima-${booking.reference}.ics`;
   document.body.appendChild(link);
   link.click();
   link.remove();
@@ -133,7 +134,21 @@ export default function BookingDetail() {
   const [cancelling, setCancelling] = useState(false);
   const isNew = searchParams.get("new") === "1";
 
-  const loader = useCallback(() => api(`/bookings/${bookingId}`), [bookingId]);
+  const loader = useCallback(async () => {
+    const booking = await api(`/bookings/${bookingId}`);
+    const showtime = await fetchShowtime(booking.showtime_id);
+    const normalized = normalizeBooking(booking, showtime);
+    // The showtime only carries a movie brief; the ticket wants the full film card.
+    if (showtime?.movie?.id) {
+      try {
+        const movie = await api(`/movies/${showtime.movie.id}`, { auth: false });
+        normalized.snapshot = { ...normalized.snapshot, movie: { ...normalized.snapshot.movie, ...movie } };
+      } catch {
+        /* keep the brief */
+      }
+    }
+    return normalized;
+  }, [bookingId]);
   const { data: booking, error, loading, reload } = useApi(loader, [bookingId]);
   useDocumentTitle(booking ? `Ticket ${booking.reference}` : "Your ticket");
 
@@ -207,7 +222,7 @@ export default function BookingDetail() {
           <div className="ticket-main">
             <div className="ticket-topline">
               <span className="brand-word">
-                NOCTURNE
+                MYCIMA
                 <small>Cinema, after dark</small>
               </span>
               <span className="ticket-admit">Admit {booking.seats?.length || 1}</span>

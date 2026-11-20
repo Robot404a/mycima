@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { setDisplayCurrency } from "../lib/format";
 
-const STORAGE_KEY = "nocturne.currency";
+const STORAGE_KEY = "mycima.currency";
 
 // The programme is priced in MAD; EUR is a display conversion for guests.
 export const CURRENCY_OPTIONS = [

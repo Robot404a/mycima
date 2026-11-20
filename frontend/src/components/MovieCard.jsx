@@ -18,7 +18,7 @@ export function MovieCard({ movie, index = 0, compact = false }) {
             <Star size={12} fill="currentColor" /> {Number(movie.rating).toFixed(1)}
           </span>
         ) : null}
-        {movie.status === "coming_soon" ? <span className="movie-status">Coming soon</span> : null}
+        {movie.is_now_showing === false ? <span className="movie-status">Coming soon</span> : null}
         <span className="movie-card-cta">
           Book <ArrowUpRight size={15} />
         </span>
@@ -27,10 +27,10 @@ export function MovieCard({ movie, index = 0, compact = false }) {
         <h3>{movie.title}</h3>
         <p className="movie-card-meta">
           {(movie.genres || []).slice(0, 2).join(" · ")}
-          {movie.duration_min ? (
+          {movie.duration_minutes ? (
             <>
               <span className="dot" />
-              <Clock3 size={13} /> {duration(movie.duration_min)}
+              <Clock3 size={13} /> {duration(movie.duration_minutes)}
             </>
           ) : null}
         </p>
@@ -41,7 +41,7 @@ export function MovieCard({ movie, index = 0, compact = false }) {
               from <strong>{money(movie.starting_price)}</strong>
             </span>
           ) : (
-            <span className="from-price">{movie.release_date?.slice(0, 4) || "Soon"}</span>
+            <span className="from-price">{movie.release_year || "Soon"}</span>
           )}
         </div>
       </div>

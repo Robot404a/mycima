@@ -175,6 +175,37 @@ def test_suggestions_are_adjacent_free_and_non_overlapping(client):
         seen.update(s["seats"])
 
 
+def test_suggestions_respect_the_requested_seat_class(client):
+    # The stub hall has no published categories, so the default VIP band applies to rows E and F.
+    regular = client.get(f"/showtimes/{SHOWTIME}/suggest?count=2&category=regular").json()
+    assert regular["category"] == "regular"
+    assert regular["suggestions"], "standard seats must still be suggested"
+    assert {s["category"] for s in regular["suggestions"]} == {"REGULAR"}
+    assert not {seat[0] for group in regular["suggestions"] for seat in group["seats"]} & {"E", "F"}
+
+    vip = client.get(f"/showtimes/{SHOWTIME}/suggest?count=2&category=vip").json()
+    assert vip["suggestions"]
+    assert {seat[0] for group in vip["suggestions"] for seat in group["seats"]} == {"E", "F"}
+
+    mixed = client.get(f"/showtimes/{SHOWTIME}/suggest?count=2").json()
+    assert mixed["category"] == "any"
+    assert {"E", "F"} <= {seat[0] for group in mixed["suggestions"] for seat in group["seats"]}
+
+
+def test_suggestion_category_must_be_known(client):
+    assert client.get(f"/showtimes/{SHOWTIME}/suggest?count=2&category=gold").status_code == 422
+
+
+def test_suggestions_respect_the_requested_row(client):
+    row_a = client.get(f"/showtimes/{SHOWTIME}/suggest?count=2&row=a").json()
+    assert row_a["row"] == "A"
+    assert row_a["suggestions"]
+    assert {seat.rstrip("0123456789") for s in row_a["suggestions"] for seat in s["seats"]} == {"A"}
+
+    assert client.get(f"/showtimes/{SHOWTIME}/suggest?count=2&row=Z").status_code == 422
+    assert client.get(f"/showtimes/{SHOWTIME}/suggest?count=2&row=12").status_code == 422
+
+
 # ---- admin --------------------------------------------------------------------------------
 def test_admin_endpoints_require_admin(client):
     assert client.get("/admin/stats").status_code == 401

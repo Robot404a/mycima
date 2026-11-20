@@ -19,7 +19,7 @@ import { formatCountdown, formatDateShort, money, seatList } from "../lib/format
 import { Poster } from "./Feedback";
 import { RichText } from "./RichText";
 
-const SESSION_KEY = "nocturne.assistant.session";
+const SESSION_KEY = "mycima.assistant.session";
 
 const SUGGESTIONS = [
   "Two seats together for a comedy tomorrow evening",
@@ -117,8 +117,8 @@ export function AssistantWidget() {
         setInput(event.detail.prompt);
       }
     };
-    window.addEventListener("nocturne:assistant-open", handler);
-    return () => window.removeEventListener("nocturne:assistant-open", handler);
+    window.addEventListener("mycima:assistant-open", handler);
+    return () => window.removeEventListener("mycima:assistant-open", handler);
   }, []);
 
   useEffect(() => {
@@ -210,7 +210,7 @@ export function AssistantWidget() {
         setPending(data.pending_confirmation || null);
         if (data.hold) {
           setHold(data.hold);
-          window.dispatchEvent(new CustomEvent("nocturne:hold-created", { detail: data.hold }));
+          window.dispatchEvent(new CustomEvent("mycima:hold-created", { detail: data.hold }));
         }
       } catch (err) {
         const message = apiErrorMessage(err);
@@ -248,7 +248,7 @@ export function AssistantWidget() {
         { id: `held-${Date.now()}`, role: "assistant", text: data.message },
       ]);
       pushToast("Seats held. Complete payment before the countdown ends.", "success");
-      window.dispatchEvent(new CustomEvent("nocturne:hold-created", { detail: data.hold }));
+      window.dispatchEvent(new CustomEvent("mycima:hold-created", { detail: data.hold }));
     } catch (err) {
       setError(apiErrorMessage(err));
       if ([409, 410].includes(err.status)) setPending(null);
@@ -279,7 +279,7 @@ export function AssistantWidget() {
           type="button"
           className="assistant-fab"
           onClick={() => setOpen(true)}
-          aria-label="Open the Nocturne concierge"
+          aria-label="Open the MyCima concierge"
         >
           <span className="assistant-fab-glow" />
           <MessageCircle size={20} />
@@ -289,7 +289,7 @@ export function AssistantWidget() {
       {open ? (
         <>
           {isMobile ? <div className="assistant-backdrop" onClick={() => setOpen(false)} /> : null}
-          <aside className={`assistant-panel ${open ? "is-open" : ""}`} aria-label="Nocturne concierge">
+          <aside className={`assistant-panel ${open ? "is-open" : ""}`} aria-label="MyCima concierge">
             <header className="assistant-head">
               <div className="assistant-identity">
                 <span className="assistant-orb">

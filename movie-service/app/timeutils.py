@@ -43,3 +43,10 @@ def local_day_bounds(day: date) -> tuple[datetime, datetime]:
 def local_datetime(day: date, hour: int, minute: int = 0) -> datetime:
     """A cinema-local wall-clock time on ``day``, converted to naive UTC."""
     return to_utc_naive(datetime.combine(day, time(hour, minute), tzinfo=CINEMA_TZ))
+
+
+def parse_cinema_datetime(value: datetime) -> datetime:
+    """Parse an admin-entered datetime: wall-clock input is cinema-local."""
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=CINEMA_TZ)
+    return to_utc_naive(value)

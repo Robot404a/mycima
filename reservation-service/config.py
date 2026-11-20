@@ -24,6 +24,13 @@ DB_POOL_MAX = _int("DB_POOL_MAX", 10)
 # Business rules
 HOLD_TTL_SECONDS = _int("HOLD_TTL_SECONDS", 600)          # how long seats stay locked
 MAX_SEATS_PER_HOLD = _int("MAX_SEATS_PER_HOLD", 8)
+# Seat categories come from the movie service (the hall's seat editor). This band
+# is only the fallback for halls that have not published categories yet: two rows
+# around two-thirds back, the middle/back-middle VIP sweet spot.
+VIP_BAND_START_RATIO = float(os.getenv("VIP_BAND_START_RATIO", "0.6"))
+VIP_BAND_ROWS = _int("VIP_BAND_ROWS", 2)
+VIP_PRICE_MULTIPLIER = Decimal(os.getenv("VIP_PRICE_MULTIPLIER", "1.5"))
+VVIP_PRICE_MULTIPLIER = Decimal(os.getenv("VVIP_PRICE_MULTIPLIER", "2.2"))
 CLEANUP_INTERVAL_SECONDS = _int("CLEANUP_INTERVAL_SECONDS", 30)
 
 # Where showtime / hall information comes from.

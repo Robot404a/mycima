@@ -49,7 +49,7 @@ services:
       DATABASE_URL: postgresql+psycopg://movie_svc:movie_svc_pass@postgres:5432/movies_db
       JWT_SECRET: ${JWT_SECRET:-mycima-dev-secret-change-me-in-production}
       SEED_ON_STARTUP: "true"
-      SEED_DAYS: ${SEED_DAYS:-7}
+      SEED_DAYS: ${SEED_DAYS:-10}
       CINEMA_TIMEZONE: Africa/Casablanca
       POSTER_CACHE_DIR: /data/posters
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
@@ -74,6 +74,9 @@ services:
       HOLD_TTL_SECONDS: ${HOLD_TTL_SECONDS:-600}
       MAX_SEATS_PER_HOLD: ${MAX_SEATS_PER_HOLD:-8}
       CLEANUP_INTERVAL_SECONDS: 30
+      NOTIFICATION_ENABLED: "true"
+      NOTIFICATION_SERVICE_URL: http://notification-service:8000
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY:-dev-internal-key-change-me}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
     ports:
       - "8004:8000"
@@ -81,6 +84,8 @@ services:
       postgres:
         condition: service_healthy
       movie-service:
+        condition: service_started
+      notification-service:
         condition: service_started
 
   payment-service:
@@ -110,6 +115,38 @@ services:
       reservation-service:
         condition: service_started
 
+  notification-service:
+    build:
+      context: .
+      dockerfile: notification-service/Dockerfile
+    container_name: mycima-notification-service
+    environment:
+      SERVICE_NAME: notification-service
+      DATABASE_URL: postgresql://notification_svc:notification_svc_pass@postgres:5432/notification_db
+      JWT_SECRET: ${JWT_SECRET:-mycima-dev-secret-change-me-in-production}
+      JWT_ALGORITHM: HS256
+      SMTP_HOST: mailpit
+      SMTP_PORT: "1025"
+      SMTP_USE_TLS: "false"
+      EMAIL_FROM: no-reply@mycima.local
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY:-dev-internal-key-change-me}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    ports:
+      # 8004 is the reservation service; notification gets 8007.
+      - "8007:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mailpit:
+        condition: service_started
+
+  mailpit:
+    image: axllent/mailpit:v1.21
+    container_name: mycima-mailpit
+    ports:
+      - "1025:1025"   # SMTP
+      - "8025:8025"   # web inbox for caught emails
+
   gateway:
     build:
       context: .
@@ -133,7 +170,18 @@ services:
       - movie-service
       - reservation-service
       - payment-service
+      - notification-service
       - ai-assistant-service
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: mycima-frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - gateway
 
   ai-assistant-service:
     build:

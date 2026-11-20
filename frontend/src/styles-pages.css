@@ -1,7 +1,7 @@
 @import "./styles-admin.css";
 
 /* ============================================================
-   NOCTURNE — home
+   MYCIMA — home
    ============================================================ */
 
 .home {
@@ -1371,7 +1371,7 @@
 }
 
 /* ============================================================
-   NOCTURNE — film detail
+   MYCIMA — film detail
    ============================================================ */
 
 .film-hero {
@@ -1887,7 +1887,7 @@
 }
 
 /* ============================================================
-   NOCTURNE — seat selection
+   MYCIMA — seat selection
    ============================================================ */
 
 .booking-page.page {
@@ -2540,7 +2540,7 @@
 }
 
 /* ============================================================
-   NOCTURNE — checkout
+   MYCIMA — checkout
    ============================================================ */
 
 .checkout-page.page {
@@ -2926,7 +2926,7 @@
 }
 
 /* ============================================================
-   NOCTURNE — ticket
+   MYCIMA — ticket
    ============================================================ */
 
 .ticket-page.page {
@@ -3380,7 +3380,7 @@
 }
 
 /* ============================================================
-   NOCTURNE — bookings list
+   MYCIMA — bookings list
    ============================================================ */
 
 .bookings-page.page {
@@ -3646,12 +3646,13 @@
 }
 
 /* ============================================================
-   NOCTURNE — auth
+   MYCIMA — auth
    ============================================================ */
 
 .auth-page {
   display: grid;
-  grid-template-columns: minmax(0, 560px) minmax(0, 1fr);
+  /* 35% form column, 65% visual column */
+  grid-template-columns: minmax(0, 35fr) minmax(0, 65fr);
   min-height: 100svh;
   background: var(--bg);
 }
@@ -3677,21 +3678,58 @@
 
 .auth-form-wrap {
   width: 100%;
-  max-width: 430px;
+  max-width: 500px;
   margin: auto;
   padding: clamp(30px, 6vh, 60px) 0;
 }
 
 .auth-form-wrap h1 {
   margin-top: 12px;
-  font-size: clamp(2.4rem, 4vw, 3.4rem);
+  font-size: clamp(2.8rem, 4.4vw, 4rem);
 }
 
 .auth-subtitle {
-  margin-top: 11px;
+  margin-top: 12px;
   color: var(--muted);
-  font-size: 0.82rem;
-  line-height: 1.65;
+  font-size: 1rem;
+  line-height: 1.7;
+}
+
+/* Larger, easier-to-read form typography on the auth screens. */
+.auth-form .field {
+  gap: 9px;
+}
+
+.auth-form .field > span {
+  font-size: 0.79rem;
+  letter-spacing: 0.1em;
+}
+
+.auth-form .field input {
+  padding: 0.95rem 1.05rem;
+  font-size: 1rem;
+}
+
+.auth-form .field > small,
+.auth-form .field-optional {
+  font-size: 0.74rem;
+}
+
+.auth-form .btn--lg {
+  font-size: 1rem;
+}
+
+.auth-form .checkbox-field {
+  font-size: 0.88rem;
+  line-height: 1.55;
+}
+
+.auth-form .password-rules span {
+  font-size: 0.8rem;
+}
+
+.auth-form .inline-banner {
+  font-size: 0.87rem;
 }
 
 .auth-form {
@@ -3712,8 +3750,8 @@
   gap: 12px;
   flex-wrap: wrap;
   color: var(--muted-2);
-  font-size: 0.6rem;
-  line-height: 1.5;
+  font-size: 0.74rem;
+  line-height: 1.55;
 }
 
 .auth-hint-row a {
@@ -3730,7 +3768,7 @@
   padding-top: 18px;
   border-top: 1px solid var(--line);
   color: var(--muted);
-  font-size: 0.72rem;
+  font-size: 0.88rem;
 }
 
 .auth-footer a {
@@ -3747,8 +3785,8 @@
   justify-content: space-between;
   gap: 14px;
   color: var(--muted-2);
-  font-size: 0.56rem;
-  letter-spacing: 0.06em;
+  font-size: 0.66rem;
+  letter-spacing: 0.05em;
 }
 
 .password-rules {
@@ -3875,7 +3913,7 @@
   margin-top: 10px;
   color: var(--cream-soft);
   font-family: var(--display);
-  font-size: clamp(1.05rem, 1.7vw, 1.35rem);
+  font-size: clamp(1.3rem, 2.1vw, 1.7rem);
   font-style: italic;
   line-height: 1.5;
 }
@@ -3884,7 +3922,7 @@
   display: block;
   margin-top: 13px;
   color: var(--muted-2);
-  font-size: 0.56rem;
+  font-size: 0.68rem;
   font-weight: 600;
   letter-spacing: 0.18em;
   text-transform: uppercase;
@@ -3903,7 +3941,7 @@
 }
 
 /* ============================================================
-   NOCTURNE — profile
+   MYCIMA — profile
    ============================================================ */
 
 .profile-page.page {
@@ -4168,7 +4206,7 @@ a.profile-stat:hover {
 }
 
 /* ============================================================
-   NOCTURNE — notifications
+   MYCIMA — notifications
    ============================================================ */
 
 .notifications-page.page {
@@ -4378,7 +4416,7 @@ a.profile-stat:hover {
 }
 
 /* ============================================================
-   NOCTURNE — 404
+   MYCIMA — 404
    ============================================================ */
 
 .notfound {
@@ -4563,7 +4601,7 @@ a.profile-stat:hover {
   }
 
   .auth-page {
-    grid-template-columns: minmax(0, 520px) minmax(0, 1fr);
+    grid-template-columns: minmax(0, 38fr) minmax(0, 62fr);
   }
 
   .profile-layout {

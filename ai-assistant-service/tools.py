@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from datetime import timedelta
 from typing import Any
 
@@ -120,6 +121,58 @@ def compact_showtime(item: dict) -> dict:
     }
 
 
+SEAT_CATEGORY_ALIASES = {
+    "standard": "regular",
+    "normal": "regular",
+    "classic": "regular",
+    "basic": "regular",
+    "regular": "regular",
+    "vip": "vip",
+    "premium": "vip",
+    "vvip": "vvip",
+}
+
+
+def normalize_category(value) -> str | None:
+    """Map the guest's wording to a seat class the reservation engine understands."""
+    text = str(value or "").strip().lower()
+    if not text or text in {"any", "all", "none", "no-preference", "no preference"}:
+        return None
+    return SEAT_CATEGORY_ALIASES.get(text)
+
+
+def normalize_row(value) -> str | None:
+    """Row letter the guest asked for ("row A", "line A", "rangée A", "A" -> "A")."""
+    text = str(value or "").strip().upper()
+    if not text or text in {"ANY", "ALL", "NONE"}:
+        return None
+    match = re.search(r"\b([A-Z]{1,2})\b(?!\d)", text)
+    return match.group(1) if match else None
+
+
+def rows_summary(seat_map: dict | None) -> list[dict]:
+    """Per-row seat counts, in seat-map order, so the assistant never guesses which rows exist."""
+    rows: dict[str, dict] = {}
+    for seat in (seat_map or {}).get("seats", []):
+        label = str(seat.get("label") or "")
+        name = str(seat.get("row") or label.rstrip("0123456789")).upper()
+        if not name:
+            continue
+        bucket = rows.setdefault(name, {"row": name, "available": 0, "total": 0})
+        bucket["total"] += 1
+        if seat.get("status") == "available":
+            bucket["available"] += 1
+    return list(rows.values())
+
+
+def seats_by_label(seat_map: dict | None) -> dict[str, dict]:
+    return {
+        str(seat.get("label")).upper(): seat
+        for seat in (seat_map or {}).get("seats", [])
+        if seat.get("label")
+    }
+
+
 def pending_is_fresh(pending: dict | None) -> bool:
     if not pending:
         return False
@@ -135,6 +188,9 @@ def public_pending(pending: dict | None) -> dict | None:
         "seat_ids",
         "suggestions",
         "seats",
+        "seat_category",
+        "category_requested",
+        "row_requested",
         "price_per_seat",
         "total_price",
         "currency",
@@ -253,12 +309,23 @@ class AssistantTools:
         available = sum(1 for seat in seats if seat.get("status") == "available")
         held = sum(1 for seat in seats if seat.get("status") == "held")
         booked = sum(1 for seat in seats if seat.get("status") == "booked")
+        by_category: dict[str, dict] = {}
+        for seat in seats:
+            name = str(seat.get("category") or "REGULAR").upper()
+            bucket = by_category.setdefault(
+                name, {"available": 0, "total": 0, "price": seat.get("price")}
+            )
+            bucket["total"] += 1
+            if seat.get("status") == "available":
+                bucket["available"] += 1
         return {
             "showtime": compact_showtime(showtime or {}),
             "total_seats": len(seats),
             "available": available,
             "held": held,
             "booked": booked,
+            "rows": rows_summary(seat_map),
+            "seat_categories": by_category,
             "price": (seat_map or {}).get("price"),
             "price_display": money((seat_map or {}).get("price"), (showtime or {}).get("currency", "MAD")),
         }
@@ -267,45 +334,106 @@ class AssistantTools:
     async def suggest_seats(self, args: dict) -> dict:
         showtime_id = int(args.get("showtime_id"))
         count = max(1, min(settings.max_seats_per_hold, int(args.get("count", 2))))
+        category = normalize_category(args.get("category"))
+        row = normalize_row(args.get("row"))
 
         seat_map = await gateway_request("GET", f"/showtimes/{showtime_id}/seats", self.token)
+        params: dict[str, Any] = {"count": count}
+        if category:
+            # The reservation engine filters on the hall's published seat classes, so a
+            # request for standard seats can never come back as a VIP row.
+            params["category"] = category
+        if row:
+            # ...and on the row itself, so "row A" is never answered with a row D suggestion.
+            params["row"] = row
         suggestion = await gateway_request(
-            "GET", f"/showtimes/{showtime_id}/suggest", self.token, params={"count": count}
+            "GET", f"/showtimes/{showtime_id}/suggest", self.token, params=params
         )
         showtime = await self._showtime(showtime_id)
 
         groups = (suggestion or {}).get("suggestions", [])
+        rows = rows_summary(seat_map)
+        known_rows = [item["row"] for item in rows]
         if not groups:
+            wanted = f"{category.upper()} " if category else ""
+            if row and row not in known_rows:
+                message = (
+                    f"This hall has no row {row}; its rows are {', '.join(known_rows)}. "
+                    "Nothing was suggested for that row."
+                )
+                status = "unknown_row"
+            elif row:
+                free = next((item["available"] for item in rows if item["row"] == row), 0)
+                message = (
+                    f"Row {row} has {free} free {wanted}seat(s) left, so no group of {count} "
+                    f"adjacent seats. Rows with free seats: "
+                    + ", ".join(f"{item['row']} ({item['available']})" for item in rows if item["available"])
+                    + "."
+                )
+                status = "no_seats"
+            else:
+                message = (
+                    f"No {count} adjacent {wanted}seats are available for this showtime. "
+                    "Offer another showtime, another seat class or a smaller group."
+                )
+                status = "no_seats"
             return {
-                "status": "no_seats",
-                "message": (
-                    f"No {count} adjacent seats are available for this showtime. "
-                    "Offer another showtime or a smaller group."
-                ),
+                "status": status,
+                "category_requested": category or "any",
+                "row_requested": row,
+                "rows": rows,
+                "message": message,
             }
 
-        price = (seat_map or {}).get("price") or (showtime or {}).get("price")
+        base_price = (seat_map or {}).get("price") or (showtime or {}).get("price")
         currency = (showtime or {}).get("currency") or "MAD"
         date, time = local_datetime_parts((showtime or {}).get("starts_at"))
         movie = (showtime or {}).get("movie") or {}
         hall = (showtime or {}).get("hall") or {}
         cinema = (showtime or {}).get("cinema") or {}
+        lookup = seats_by_label(seat_map)
 
-        suggestions = [
-            {"row": group.get("row"), "seats": group.get("seats", []), "score": group.get("score")}
-            for group in groups
-        ]
+        def class_of(label: str) -> str:
+            return str((lookup.get(label) or {}).get("category") or (category or "regular")).upper()
+
+        def price_of(label: str):
+            value = (lookup.get(label) or {}).get("price")
+            return value if value is not None else base_price
+
+        suggestions = []
+        for group in groups:
+            labels = [str(seat).upper() for seat in group.get("seats", [])]
+            prices = [price_of(label) for label in labels]
+            try:
+                group_total = round(sum(float(value) for value in prices), 2)
+            except (TypeError, ValueError):
+                group_total = None
+            suggestions.append(
+                {
+                    "row": group.get("row"),
+                    "seats": labels,
+                    "score": group.get("score"),
+                    "proposed": not suggestions,
+                    "category": class_of(labels[0]) if labels else None,
+                    "price_per_seat": prices[0] if prices else None,
+                    "total_price": group_total,
+                }
+            )
         primary = suggestions[0]
-        try:
-            total = round(float(price) * count, 2) if price is not None else None
-        except (TypeError, ValueError):
-            total = None
+        price = primary["price_per_seat"]
+        total = primary["total_price"]
 
         pending = {
             "showtime_id": showtime_id,
             "seat_ids": primary["seats"],
             "suggestions": suggestions,
-            "seats": [{"seat_id": label, "category": hall.get("screen_type")} for label in primary["seats"]],
+            "seats": [
+                {"seat_id": label, "category": class_of(label), "price": price_of(label)}
+                for label in primary["seats"]
+            ],
+            "seat_category": primary["category"],
+            "category_requested": category or "any",
+            "row_requested": row,
             "price_per_seat": price,
             "total_price": total,
             "currency": currency,
@@ -327,6 +455,10 @@ class AssistantTools:
             "status": "seats_suggested",
             "suggestions": suggestions,
             "seats": primary["seats"],
+            "seat_category": primary["category"],
+            "category_requested": category or "any",
+            "row_requested": row,
+            "rows": rows,
             "count": count,
             "price_per_seat": price,
             "price_per_seat_display": money(price, currency),
@@ -344,9 +476,14 @@ class AssistantTools:
             },
             "confirmation_required": True,
             "instruction": (
-                "Present the seats (and the alternative groups if useful) and ask the guest to "
-                "confirm. Only after an explicit yes may you call hold_seats with confirm=true "
-                "for one of these exact groups."
+                "The proposal is the group with proposed=true (same as `seats`): name exactly those "
+                "seats and ask the guest to confirm, because that is the group the button holds. "
+                "Never recommend a different group than proposed=true; mention the other groups "
+                "only if the guest asks for alternatives, and if they pick one, call suggest_seats "
+                "again for that row. Quote the seat class exactly as returned "
+                "(REGULAR = standard, VIP, VVIP) "
+                "and never call a seat class the tool did not return. Only after an explicit yes "
+                "may you call hold_seats with confirm=true for one of these exact groups."
             ),
         }
 

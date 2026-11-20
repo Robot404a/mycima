@@ -16,6 +16,7 @@ import agent as agent_module
 import tools as tools_module
 from db import SessionLocal
 from models import AssistantSession
+from tools import AssistantTools
 from utils import local_datetime_parts
 
 MOVIE = {
@@ -71,7 +72,15 @@ SHOWTIME = {
 
 def seat_map() -> dict:
     seats = [
-        {"label": f"{row}{number}", "row": row, "number": number, "status": "available", "mine": False}
+        {
+            "label": f"{row}{number}",
+            "row": row,
+            "number": number,
+            "category": "REGULAR" if row == "A" else "VIP",
+            "price": 50.0 if row == "A" else 75.0,
+            "status": "available",
+            "mine": False,
+        }
         for row in ("A", "B")
         for number in range(1, 11)
     ]
@@ -99,14 +108,20 @@ class FakeBackend:
             return seat_map()
         if path == "/showtimes/7/suggest":
             count = int((params or {}).get("count", 2))
-            return {
-                "showtime_id": 7,
-                "count": count,
-                "suggestions": [
-                    {"row": "A", "seats": [f"A{n}" for n in range(1, count + 1)], "score": 0.4},
-                    {"row": "B", "seats": [f"B{n}" for n in range(1, count + 1)], "score": 1.9},
-                ],
-            }
+            wanted = (params or {}).get("category")
+            row = (params or {}).get("row")
+            groups = [
+                {"row": "A", "seats": [f"A{n}" for n in range(1, count + 1)], "score": 0.4},
+                {"row": "B", "seats": [f"B{n}" for n in range(1, count + 1)], "score": 1.9},
+            ]
+            # Mirrors the reservation engine: a requested seat class filters the groups.
+            if wanted:
+                groups = [g for g in groups if (g["row"] == "A") == (wanted == "regular")]
+            # ...and so does a requested row.
+            if row:
+                groups = [g for g in groups if g["row"] == row]
+            return {"showtime_id": 7, "count": count, "category": wanted or "any",
+                    "row": row, "suggestions": groups}
         if path == "/holds" and method == "POST":
             if self.hold_status >= 400:
                 from tools import ToolError
@@ -262,6 +277,68 @@ def test_suggest_seats_builds_pending_confirmation(client, auth, backend, monkey
     assert pending["date"] == expected_date
     assert pending["time"] == expected_time
     assert len(pending["suggestions"]) == 2
+
+
+def test_suggest_seats_respects_the_requested_seat_class(client, auth, backend, monkeypatch):
+    monkeypatch.setattr(
+        agent_module,
+        "call_llm",
+        llm_script(
+            ("tool", "suggest_seats", {"showtime_id": 7, "count": 2, "category": "regular"}),
+            ("text", "Two standard seats in row A."),
+        ),
+    )
+    body = chat(client, auth, "two standard seats, not vip, for inception")
+
+    suggest_calls = [call for call in backend.calls if call["path"] == "/showtimes/7/suggest"]
+    assert suggest_calls[-1]["params"]["category"] == "regular"
+    pending = body["pending_confirmation"]
+    assert pending["seat_ids"] == ["A1", "A2"]
+    assert pending["seat_category"] == "REGULAR"
+    assert {seat["category"] for seat in pending["seats"]} == {"REGULAR"}
+    assert pending["total_price"] == 100.0
+
+
+def test_suggest_seats_honours_the_requested_row(client, auth, backend, monkeypatch):
+    monkeypatch.setattr(
+        agent_module,
+        "call_llm",
+        llm_script(
+            ("tool", "suggest_seats", {"showtime_id": 7, "count": 2, "row": "B"}),
+            ("text", "Two VIP seats in row B."),
+        ),
+    )
+    body = chat(client, auth, "i want seats of the line B")
+
+    suggest_calls = [call for call in backend.calls if call["path"] == "/showtimes/7/suggest"]
+    assert suggest_calls[-1]["params"]["row"] == "B"
+    pending = body["pending_confirmation"]
+    assert pending["seat_ids"] == ["B1", "B2"]
+    assert pending["row_requested"] == "B"
+    assert pending["seat_category"] == "VIP"
+
+
+def test_suggestion_reports_the_rows_of_the_hall(backend):
+    """A row the hall does not have must come back as unknown_row plus the real row list,
+    never as a guess that the hall starts somewhere else."""
+    import asyncio
+
+    with SessionLocal() as db:
+        session = AssistantSession(id=str(uuid4()), user_id="1", title="rows")
+        db.add(session)
+        db.commit()
+        toolset = AssistantTools(db, session, "Bearer test-token", "i want seats of the line C")
+        result = asyncio.run(toolset.suggest_seats({"showtime_id": 7, "count": 2, "row": "line C"}))
+        availability = asyncio.run(toolset.get_seat_availability({"showtime_id": 7}))
+
+    suggest_calls = [call for call in backend.calls if call["path"] == "/showtimes/7/suggest"]
+    assert suggest_calls[-1]["params"]["row"] == "C"
+    assert result["status"] == "unknown_row"
+    assert [row["row"] for row in result["rows"]] == ["A", "B"]
+    assert "A, B" in result["message"]
+    assert [row["row"] for row in availability["rows"]] == ["A", "B"]
+    assert availability["rows"][0]["available"] == 10
+    assert session.pending in (None, {})
 
 
 def test_hold_requires_explicit_confirmation(client, auth, backend, monkeypatch):

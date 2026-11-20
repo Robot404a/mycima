@@ -24,3 +24,7 @@ CREATE DATABASE ai_assistant_db OWNER ai_svc;
 -- Payment service: simulated transactions, one row per reservation hold
 CREATE ROLE payment_svc LOGIN PASSWORD 'payment_svc_pass';
 CREATE DATABASE payment_db OWNER payment_svc;
+
+-- Notification service: one row per email sent for a booking event
+CREATE ROLE notification_svc LOGIN PASSWORD 'notification_svc_pass';
+CREATE DATABASE notification_db OWNER notification_svc;

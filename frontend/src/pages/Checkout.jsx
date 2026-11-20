@@ -17,11 +17,13 @@ import {
 import { api, apiErrorMessage } from "../lib/api";
 import { useApi, useDocumentTitle } from "../lib/hooks";
 import { formatDateLong, formatTime, money, seatList } from "../lib/format";
+import { fetchShowtime, normalizeHold } from "../lib/booking";
 import { ErrorState, PageLoader, Poster, Spinner } from "../components/Feedback";
 import { StepIndicator } from "../components/StepIndicator";
 import { Countdown } from "../components/Countdown";
 import { Modal } from "../components/Modal";
 import { useAuth } from "../context/AuthContext";
+import { useCurrency } from "../context/CurrencyContext";
 import { useToast } from "../context/ToastContext";
 
 const STEPS = ["Screening", "Seats", "Payment", "Ticket"];
@@ -40,11 +42,28 @@ function formatExpiry(value) {
   return `${digits.slice(0, 2)}/${digits.slice(2)}`;
 }
 
+// A card expiry has to be a real month and a year that has not passed yet.
+// Shape-only checks let values such as 77/77 through, so validate the date.
+function expiryError(value) {
+  const match = /^(\d{2})\/(\d{2})$/.exec(value);
+  if (!match) return "Use MM/YY.";
+  const month = Number(match[1]);
+  if (month < 1 || month > 12) return "Month must be between 01 and 12.";
+  const year = 2000 + Number(match[2]);
+  const now = new Date();
+  // The card stays valid through the last day of its expiry month.
+  if (year < now.getFullYear() || (year === now.getFullYear() && month < now.getMonth() + 1)) {
+    return "This card has expired.";
+  }
+  return "";
+}
+
 export default function Checkout() {
   const { holdId } = useParams();
   const navigate = useNavigate();
   const { pushToast } = useToast();
   const { user } = useAuth();
+  const { currency } = useCurrency();
   const [paying, setPaying] = useState(false);
   const [payError, setPayError] = useState(null);
   const [releasing, setReleasing] = useState(false);
@@ -53,7 +72,11 @@ export default function Checkout() {
   const [form, setForm] = useState({ name: "", number: "", expiry: "", cvc: "" });
   const [touched, setTouched] = useState({});
 
-  const loader = useCallback(() => api(`/holds/${holdId}`), [holdId]);
+  const loader = useCallback(async () => {
+    const hold = await api(`/holds/${holdId}`);
+    const showtime = await fetchShowtime(hold.showtime_id);
+    return normalizeHold(hold, showtime);
+  }, [holdId]);
   const { data: hold, error, loading, reload } = useApi(loader, [holdId]);
   useDocumentTitle("Payment");
   const snapshot = hold?.snapshot || {};
@@ -73,7 +96,7 @@ export default function Checkout() {
     return (
       form.name.trim().length >= 2 &&
       digits.length >= 15 &&
-      /^\d{2}\/\d{2}$/.test(form.expiry) &&
+      !expiryError(form.expiry) &&
       /^\d{3,4}$/.test(form.cvc)
     );
   }, [form]);
@@ -94,27 +117,43 @@ export default function Checkout() {
     if (!cardValid) return;
     setPaying(true);
     setPayError(null);
+    // The payment service charges the hold and confirms the booking with the reservation
+    // service. The key makes a retried submit idempotent instead of charging twice.
+    const idempotencyKey =
+      typeof crypto !== "undefined" && crypto.randomUUID
+        ? crypto.randomUUID()
+        : `pay-${Date.now()}-${Math.random().toString(16).slice(2)}`;
     try {
-      const result = await api(`/holds/${holdId}/confirm`, {
+      const payment = await api("/payments", {
         method: "POST",
+        headers: { "Idempotency-Key": idempotencyKey },
+        body: { hold_id: holdId, method: "CARD", currency },
         timeout: 60000,
       });
-      pushToast("Payment approved. Your ticket is ready.", "success");
-      navigate(`/bookings/${result.booking.id}?new=1`, { replace: true });
-    } catch (err) {
-      const detail = err.detail;
-      if (err.status === 402) {
+      if (payment.status !== "SUCCEEDED") {
         setPayError(
-          detail?.message ||
-            "The simulated payment was declined. Your seats were released — choose seats again.",
+          payment.failure_reason ||
+            "The simulated payment was declined. Your seats stay held until the timer runs out.",
         );
-        setPaying(false);
         reload();
         return;
       }
+      pushToast("Payment approved. Your ticket is ready.", "success");
+      const bookings = await api("/bookings", { timeout: 30000 });
+      const booking = (bookings?.bookings || []).find(
+        (entry) => entry.hold_id === holdId || entry.hold_id === payment.hold_id,
+      );
+      if (booking) navigate(`/bookings/${booking.id}?new=1`, { replace: true });
+      else navigate("/bookings", { replace: true });
+    } catch (err) {
       if (err.status === 410) {
         setExpired(true);
         setPayError("Your hold has expired. The seats have been released.");
+      } else if (err.status === 402) {
+        setPayError(
+          err.detail?.message ||
+            "The simulated payment was declined. Your seats were released — choose seats again.",
+        );
       } else {
         setPayError(apiErrorMessage(err));
       }
@@ -159,6 +198,7 @@ export default function Checkout() {
 
   const confirmed = hold.status === "CONFIRMED" && hold.booking_id;
   const inactive = expired || hold.status !== "ACTIVE" || hold.seconds_remaining <= 0;
+  const expiryProblem = expiryError(form.expiry);
 
   return (
     <div className="checkout-page page">
@@ -300,10 +340,10 @@ export default function Checkout() {
                     onBlur={() => setTouched((current) => ({ ...current, expiry: true }))}
                     placeholder="MM/YY"
                     autoComplete="cc-exp"
-                    aria-invalid={touched.expiry && !/^\d{2}\/\d{2}$/.test(form.expiry)}
+                    aria-invalid={touched.expiry && Boolean(expiryProblem)}
                   />
-                  {touched.expiry && !/^\d{2}\/\d{2}$/.test(form.expiry) ? (
-                    <small className="field-error">Use MM/YY.</small>
+                  {touched.expiry && expiryProblem ? (
+                    <small className="field-error">{expiryProblem}</small>
                   ) : null}
                 </label>
                 <label className="field">
@@ -330,7 +370,7 @@ export default function Checkout() {
                   className="text-btn"
                   onClick={() =>
                     setForm({
-                      name: "Nocturne Guest",
+                      name: "MyCima Guest",
                       number: "4242 4242 4242 4242",
                       expiry: "12/29",
                       cvc: "123",
@@ -444,12 +484,21 @@ export default function Checkout() {
             <span>Seats</span>
             <strong>{seatList(hold.seats) || "—"}</strong>
             <div className="checkout-seat-chips">
-              {(hold.seats || []).map((seat) => (
-                <span key={seat.seat_id} className={`seat-chip seat-chip--${seat.category.toLowerCase()}`}>
-                  {seat.seat_id}
-                  <small>{money(seat.price, hold.currency)}</small>
-                </span>
-              ))}
+              {(hold.seats || []).map((seat) => {
+                const label = typeof seat === "string" ? seat : seat.seat_id;
+                const category =
+                  (typeof seat === "string" ? "regular" : seat.category || "regular").toLowerCase();
+                const price =
+                  typeof seat === "string"
+                    ? Number(hold.total_price || 0) / (hold.seats.length || 1)
+                    : seat.price;
+                return (
+                  <span key={label} className={`seat-chip seat-chip--${category}`}>
+                    {label}
+                    <small>{money(price, hold.currency)}</small>
+                  </span>
+                );
+              })}
             </div>
           </div>
           <div className="checkout-totals">

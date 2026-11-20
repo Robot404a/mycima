@@ -39,7 +39,7 @@ class Settings:
     jwt_secret: str = field(default_factory=lambda: os.getenv("JWT_SECRET", "dev-secret-change-me"))
     jwt_algorithm: str = field(default_factory=lambda: os.getenv("JWT_ALGORITHM", "HS256"))
     seed_on_startup: bool = field(default_factory=lambda: _env_bool("SEED_ON_STARTUP", True))
-    seed_days: int = field(default_factory=lambda: _env_int("SEED_DAYS", 7))
+    seed_days: int = field(default_factory=lambda: _env_int("SEED_DAYS", 10))
     cinema_timezone: str = field(default_factory=lambda: os.getenv("CINEMA_TIMEZONE", "Africa/Casablanca"))
     media_cache_dir: Path = field(
         default_factory=lambda: Path(os.getenv("POSTER_CACHE_DIR", str(BASE_DIR / "media_cache")))

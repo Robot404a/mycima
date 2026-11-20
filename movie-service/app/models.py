@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, JSON, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, Date, DateTime, Float, ForeignKey, Integer, JSON, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .database import Base
@@ -26,6 +26,8 @@ class Cinema(Base):
     city: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
     address: Mapped[str] = mapped_column(String(255), default="")
     phone: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    description: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    amenities: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
 
     halls: Mapped[list[Hall]] = relationship(
@@ -45,6 +47,10 @@ class Hall(Base):
     seats_per_row: Mapped[int] = mapped_column(Integer, default=14, nullable=False)
     aisle_after: Mapped[list[int]] = mapped_column(JSON, default=list, nullable=False)
     broken_seats: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
+    supported_formats: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
+    seat_categories: Mapped[dict[str, str]] = mapped_column(JSON, default=dict, nullable=False)
+    description: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
 
     cinema: Mapped[Cinema] = relationship(back_populates="halls")
@@ -62,6 +68,8 @@ class Movie(Base):
     slug: Mapped[str] = mapped_column(String(140), unique=True, index=True, nullable=False)
     title: Mapped[str] = mapped_column(String(200), nullable=False, index=True)
     original_title: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    tagline: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    release_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     release_year: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
     director: Mapped[str | None] = mapped_column(String(160), nullable=True)
     cast: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
@@ -75,7 +83,11 @@ class Movie(Base):
     age_rating: Mapped[str] = mapped_column(String(20), default="All ages", nullable=False)
     language: Mapped[str] = mapped_column(String(40), default="English", nullable=False)
     country: Mapped[str] = mapped_column(String(60), default="", nullable=False)
-    poster_path: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    poster_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    backdrop_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    trailer_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    status: Mapped[str] = mapped_column(String(20), default="now_showing", nullable=False)
+    featured: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     is_now_showing: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow, nullable=False)
@@ -106,6 +118,9 @@ class Showtime(Base):
     currency: Mapped[str] = mapped_column(String(3), default="MAD", nullable=False)
     language: Mapped[str] = mapped_column(String(20), default="VO", nullable=False)
     format: Mapped[str] = mapped_column(String(20), default="2D", nullable=False)
+    # An admin edit wins over the automatic format rule applied by the seeder.
+    format_locked: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
 
     movie: Mapped[Movie] = relationship(back_populates="showtimes")

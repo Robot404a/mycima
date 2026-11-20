@@ -7,7 +7,7 @@ import time
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Response
-from sqlalchemy import select, text
+from sqlalchemy import inspect, select, text
 
 from config import settings
 from database import Base, SessionLocal, engine
@@ -26,6 +26,7 @@ async def initialise_database(max_attempts: int = 15, delay_seconds: float = 2.0
     for attempt in range(1, max_attempts + 1):
         try:
             Base.metadata.create_all(bind=engine)
+            _ensure_user_columns()
             return
         except Exception as exc:  # noqa: BLE001 - report any driver error
             last_error = exc
@@ -34,6 +35,22 @@ async def initialise_database(max_attempts: int = 15, delay_seconds: float = 2.0
             )
             await asyncio.sleep(delay_seconds)
     raise RuntimeError("Could not initialise the users database") from last_error
+
+
+def _ensure_user_columns() -> None:
+    """Add columns introduced after the users table first existed."""
+    inspector = inspect(engine)
+    if "users" not in inspector.get_table_names():
+        return
+    columns = {column["name"] for column in inspector.get_columns("users")}
+    with engine.begin() as connection:
+        if "phone" not in columns:
+            connection.execute(text("ALTER TABLE users ADD COLUMN phone VARCHAR(40)"))
+        if "is_active" not in columns:
+            # Existing accounts are active; only an explicit admin action disables one.
+            connection.execute(
+                text("ALTER TABLE users ADD COLUMN is_active BOOLEAN DEFAULT TRUE NOT NULL")
+            )
 
 
 def seed_admin() -> None:

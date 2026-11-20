@@ -33,6 +33,8 @@ class ShowtimeInfo:
     rows: tuple[str, ...]
     seats_per_row: int
     starts_at: datetime | None = None
+    # seat_id -> REGULAR / VIP / VVIP, published by the hall's seat editor.
+    categories: dict[str, str] | None = None
 
     def seat_labels(self) -> list[str]:
         return [f"{r}{n}" for r in self.rows for n in range(1, self.seats_per_row + 1)]
@@ -99,4 +101,8 @@ def _parse(showtime_id: int, data: dict) -> ShowtimeInfo:
     return ShowtimeInfo(
         id=showtime_id, price=price, rows=tuple(row_label(i) for i in range(rows)),
         seats_per_row=per_row, starts_at=starts_at,
+        categories={
+            str(seat).upper(): str(category).upper()
+            for seat, category in (hall.get("seat_categories") or {}).items()
+        },
     )

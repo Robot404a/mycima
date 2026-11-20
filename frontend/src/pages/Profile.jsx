@@ -14,6 +14,7 @@ import {
   UserRound,
 } from "lucide-react";
 import { api, apiErrorMessage } from "../lib/api";
+import { hydrateBookings } from "../lib/booking";
 import { useApi, useDocumentTitle } from "../lib/hooks";
 import { formatDateLong, initials, money } from "../lib/format";
 import { useAuth } from "../context/AuthContext";
@@ -32,11 +33,14 @@ export default function Profile() {
   const [error, setError] = useState("");
 
   const summaryLoader = useCallback(async () => {
-    const [bookings, unread] = await Promise.all([
+    const [response, unread] = await Promise.all([
       api("/bookings/me"),
       api("/notifications/unread-count"),
     ]);
-    return { bookings, unread };
+    return {
+      bookings: { items: await hydrateBookings(response?.bookings || []) },
+      unread,
+    };
   }, []);
   const summary = useApi(summaryLoader, []);
 
@@ -159,7 +163,7 @@ export default function Profile() {
           </span>
           <div>
             {summary.loading ? <Skeleton style={{ width: 70, height: 26 }} /> : <strong>{money(stats.spend)}</strong>}
-            <span>Spent at Nocturne</span>
+            <span>Spent at MyCima</span>
           </div>
         </div>
       </div>
@@ -255,7 +259,7 @@ export default function Profile() {
             <button
               type="button"
               className="btn btn--ghost btn--sm"
-              onClick={() => window.dispatchEvent(new CustomEvent("nocturne:assistant-open"))}
+              onClick={() => window.dispatchEvent(new CustomEvent("mycima:assistant-open"))}
             >
               <Sparkles size={14} /> Ask the concierge
             </button>

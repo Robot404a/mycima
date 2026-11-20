@@ -87,7 +87,12 @@ def test_hall_layout_is_complete(client):
     assert body["total_seats"] <= body["rows"] * body["seats_per_row"]
 
 
-def test_poster_falls_back_to_generated_svg(client):
+def test_poster_falls_back_to_generated_svg(client, monkeypatch, tmp_path):
+    # Keep the test offline and independent of any poster cached by an earlier run.
+    from app.routers import media
+
+    monkeypatch.setattr(media, "_cache_file", lambda slug: tmp_path / f"{slug}.jpg")
+    monkeypatch.setattr(media, "_download_poster", lambda slug, poster_path: None)
     response = client.get("/media/posters/les-chevaux-de-dieu.jpg")
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("image/svg+xml")

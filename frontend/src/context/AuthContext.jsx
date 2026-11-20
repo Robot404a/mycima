@@ -55,8 +55,8 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     const handler = () => logout();
-    window.addEventListener("nocturne:unauthorized", handler);
-    return () => window.removeEventListener("nocturne:unauthorized", handler);
+    window.addEventListener("mycima:unauthorized", handler);
+    return () => window.removeEventListener("mycima:unauthorized", handler);
   }, [logout]);
 
   const login = useCallback(
@@ -73,39 +73,20 @@ export function AuthProvider({ children }) {
     [persist],
   );
 
-  // Registration is two steps: start it (emails a 6-digit code) and verify it.
-  const startRegistration = useCallback(
-    async (payload) =>
-      api("/auth/register", {
+  // Registration is one step: the user service creates the account and returns a
+  // JWT, so the visitor is signed in straight away.
+  const register = useCallback(
+    async (payload) => {
+      const result = await api("/auth/register", {
         method: "POST",
         auth: false,
         body: payload,
-      }),
-    [],
-  );
-
-  const verifyRegistration = useCallback(
-    async (email, code) => {
-      const result = await api("/auth/register/verify", {
-        method: "POST",
-        auth: false,
-        body: { email, code },
       });
       persist(result.access_token, result.user);
       setReady(true);
       return result.user;
     },
     [persist],
-  );
-
-  const resendRegistrationCode = useCallback(
-    async (email) =>
-      api("/auth/register/resend", {
-        method: "POST",
-        auth: false,
-        body: { email },
-      }),
-    [],
   );
 
   const updateUser = useCallback((nextUser) => {
@@ -121,9 +102,7 @@ export function AuthProvider({ children }) {
       isAuthenticated: Boolean(token && user),
       isAdmin: user?.role === "admin",
       login,
-      startRegistration,
-      verifyRegistration,
-      resendRegistrationCode,
+      register,
       logout,
       refreshUser,
       updateUser,
@@ -133,9 +112,7 @@ export function AuthProvider({ children }) {
       user,
       ready,
       login,
-      startRegistration,
-      verifyRegistration,
-      resendRegistrationCode,
+      register,
       logout,
       refreshUser,
       updateUser,

@@ -7,7 +7,7 @@ export function Footer() {
       <div className="footer-top">
         <div className="footer-brand">
           <span className="brand-word">
-            NOCTURNE
+            MYCIMA
             <small>Cinema, after dark</small>
           </span>
           <p>
@@ -19,14 +19,14 @@ export function Footer() {
         <div className="footer-col">
           <h4>Visit</h4>
           <p>
-            <MapPin size={14} /> Nocturne Central
+            <MapPin size={14} /> MyCima Central
             <br />
             12 Boulevard Mohammed V
             <br />
             Casablanca
           </p>
-          <a href="mailto:hello@nocturne.ma">
-            hello@nocturne.ma <MoveUpRight size={13} />
+          <a href="mailto:hello@mycima.ma">
+            hello@mycima.ma <MoveUpRight size={13} />
           </a>
         </div>
         <div className="footer-col">
@@ -48,7 +48,7 @@ export function Footer() {
         </div>
       </div>
       <div className="footer-bottom">
-        <span>© {new Date().getFullYear()} Nocturne Cinemas. All rights reserved.</span>
+        <span>© {new Date().getFullYear()} MyCima Cinemas. All rights reserved.</span>
         <span>A distributed booking experience.</span>
       </div>
     </footer>

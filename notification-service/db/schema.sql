@@ -13,8 +13,12 @@ CREATE TABLE IF NOT EXISTS notifications (
     last_attempt_at  TIMESTAMPTZ,
     error            TEXT,
     created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
-    sent_at          TIMESTAMPTZ
+    sent_at          TIMESTAMPTZ,
+    read_at          TIMESTAMPTZ             -- when the user opened it in the website inbox
 );
+
+-- Existing databases created before the inbox had read state.
+ALTER TABLE notifications ADD COLUMN IF NOT EXISTS read_at TIMESTAMPTZ;
 
 CREATE INDEX IF NOT EXISTS idx_notifications_user   ON notifications (user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_notifications_status ON notifications (status)

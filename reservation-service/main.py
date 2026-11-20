@@ -137,16 +137,34 @@ def availability_one(showtime_id: int):
 
 
 @app.get("/showtimes/{showtime_id}/suggest")
-def suggest(showtime_id: int, count: int = Query(2, ge=1)):
+def suggest(
+    showtime_id: int,
+    count: int = Query(2, ge=1),
+    category: str | None = Query(
+        None,
+        pattern="^(regular|vip|vvip|any)$",
+        description="Seat class to restrict the suggestions to; 'any' (default) mixes all classes.",
+    ),
+    row: str | None = Query(
+        None,
+        pattern="^[A-Za-z]{1,2}$",
+        description="Row letter to restrict the suggestions to, e.g. 'A'.",
+    ),
+):
     if count > config.MAX_SEATS_PER_HOLD:
         raise HTTPException(422, f"You can select at most {config.MAX_SEATS_PER_HOLD} seats.")
     info = movie_client.get_showtime(showtime_id)
     if count > info.seats_per_row:
         raise HTTPException(422, "Not enough seats in a row for that group size.")
+    wanted = None if not category or category == "any" else {category.upper()}
+    rows = {row.upper()} if row else None
+    if rows and not rows.issubset({r.upper() for r in info.rows}):
+        raise HTTPException(422, f"This hall has no row {row.upper()}. Its rows are {', '.join(info.rows)}.")
     with db.get_conn() as conn:
         unavailable = set(service.taken_seats(conn, showtime_id))
-    return {"showtime_id": showtime_id, "count": count,
-            "suggestions": service.suggest_seats(info, unavailable, count)}
+    return {"showtime_id": showtime_id, "count": count, "category": category or "any",
+            "row": row.upper() if row else None,
+            "suggestions": service.suggest_seats(info, unavailable, count, categories=wanted, rows=rows)}
 
 
 # --------------------------------------------------------------------------- holds
@@ -202,7 +220,7 @@ def create_booking(body: BookingCreate, user: dict = Depends(current_user)):
 
 @app.get("/bookings")
 def my_bookings(status: str | None = Query(None, pattern="^(confirmed|cancelled)$"),
-                limit: int = Query(50, ge=1, le=200), offset: int = Query(0, ge=0),
+                limit: int = Query(50, ge=1, le=500), offset: int = Query(0, ge=0),
                 user: dict = Depends(current_user)):
     with db.get_conn() as conn:
         return {"bookings": service.list_bookings(conn, user_id=user_id_of(user), status=status,
@@ -235,7 +253,7 @@ def cancel_booking(booking_id: UUID, user: dict = Depends(current_user)):
 @app.get("/admin/bookings")
 def admin_bookings(status: str | None = Query(None, pattern="^(confirmed|cancelled)$"),
                    showtime_id: int | None = None, user_id: int | None = None,
-                   limit: int = Query(50, ge=1, le=200), offset: int = Query(0, ge=0),
+                   limit: int = Query(50, ge=1, le=500), offset: int = Query(0, ge=0),
                    _: dict = Depends(admin_user)):
     with db.get_conn() as conn:
         return {"bookings": service.list_bookings(conn, user_id=user_id, status=status,
@@ -254,7 +272,7 @@ def admin_cancel_booking(booking_id: UUID, _: dict = Depends(admin_user)):
 @app.get("/admin/holds")
 def admin_holds(status: str | None = Query("active", pattern="^(active|expired|released|converted)$"),
                 showtime_id: int | None = None, user_id: int | None = None,
-                limit: int = Query(50, ge=1, le=200), offset: int = Query(0, ge=0),
+                limit: int = Query(50, ge=1, le=500), offset: int = Query(0, ge=0),
                 _: dict = Depends(admin_user)):
     with db.get_conn() as conn:
         return {"holds": service.list_holds(conn, user_id=user_id, status=status,

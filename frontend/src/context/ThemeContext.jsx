@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 
-const STORAGE_KEY = "nocturne.theme";
+const STORAGE_KEY = "mycima.theme";
 const ThemeContext = createContext(null);
 
 function initialTheme() {

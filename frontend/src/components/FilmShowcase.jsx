@@ -102,7 +102,7 @@ export default function FilmShowcase({ movies = [], label = "The programme" }) {
       className={`showcase ${paused ? "is-paused" : ""}`}
       style={{ "--showcase-duration": `${SLIDE_MS}ms` }}
       aria-roledescription="carousel"
-      aria-label="Films now showing at Nocturne"
+      aria-label="Films now showing at MyCima"
       onPointerEnter={() => setPaused(true)}
       onPointerLeave={() => setPaused(false)}
       onFocusCapture={() => setPaused(true)}

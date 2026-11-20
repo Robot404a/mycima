@@ -153,12 +153,12 @@ export function Navbar() {
   return (
     <header className={`navbar ${solid ? "is-solid" : ""} ${mobileOpen ? "is-open" : ""}`}>
       <div className="navbar-inner">
-        <Link to="/" className="brand" aria-label="Nocturne home">
+        <Link to="/" className="brand" aria-label="MyCima home">
           <span className="brand-mark" aria-hidden="true">
             <span />
           </span>
           <span className="brand-word">
-            NOCTURNE
+            MYCIMA
             <small>Cinema, after dark</small>
           </span>
         </Link>
@@ -246,7 +246,7 @@ export function Navbar() {
                 Sign in
               </Link>
               <Link to="/register" className="btn btn--gold btn--sm">
-                Join Nocturne
+                Join MyCima
               </Link>
             </div>
           )}
@@ -296,7 +296,7 @@ export function Navbar() {
                 Sign in
               </Link>
               <Link to="/register" className="btn btn--gold">
-                Join Nocturne
+                Join MyCima
               </Link>
             </div>
           )}

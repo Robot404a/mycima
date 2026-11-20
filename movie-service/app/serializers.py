@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+from datetime import timezone
+
 from .models import Cinema, Hall, Movie, Showtime
 from .timeutils import iso_utc
+from .timeutils import CINEMA_TZ
 
 
 def row_label(index: int) -> str:
@@ -34,6 +37,7 @@ def movie_out(movie: Movie) -> dict:
         "language": movie.language,
         "country": movie.country,
         "poster_url": movie.poster_url,
+        "trailer_url": movie.trailer_url,
         "is_now_showing": movie.is_now_showing,
     }
 
@@ -80,6 +84,43 @@ def hall_out(hall: Hall) -> dict:
     }
 
 
+def hall_admin_out(hall: Hall) -> dict:
+    """Shape used by the control room's halls & seats screen."""
+    from .formats import hall_formats
+
+    return {
+        "id": hall.id,
+        "cinema_id": hall.cinema_id,
+        "name": hall.name,
+        "screen_type": hall.screen_type,
+        "row_count": hall.rows,
+        "rows": hall.rows,
+        "seats_per_row": hall.seats_per_row,
+        "aisles_after": list(hall.aisle_after or []),
+        "aisle_after": list(hall.aisle_after or []),
+        "supported_formats": list(hall.supported_formats or []),
+        "formats": hall_formats(hall),
+        "description": hall.description,
+        "is_active": bool(hall.is_active),
+        "total_seats": hall.total_seats,
+        "cinema": cinema_brief(hall.cinema),
+    }
+
+
+def movie_admin_out(movie: Movie) -> dict:
+    """Shape used by the control room's catalogue screen."""
+    return {
+        **movie_out(movie),
+        "tagline": movie.tagline,
+        "duration_min": movie.duration_minutes,
+        "release_date": movie.release_date.isoformat() if movie.release_date else None,
+        "backdrop_url": movie.backdrop_url,
+        "status": movie.status,
+        "featured": bool(movie.featured),
+        "mood_tags": list(movie.moods or []),
+    }
+
+
 def hall_layout(hall: Hall) -> dict:
     """Seat layout consumed by the reservation service and the SVG seat map."""
     broken = set(hall.broken_seats or [])
@@ -105,9 +146,54 @@ def hall_layout(hall: Hall) -> dict:
     }
 
 
-def showtime_out(showtime: Showtime) -> dict:
+def showtime_admin_out(showtime: Showtime) -> dict:
+    """Shape used by the control room's programme grid."""
+    starts_at = showtime.starts_at
+    local = starts_at.replace(tzinfo=timezone.utc).astimezone(CINEMA_TZ)
+    return {
+        "id": showtime.id,
+        "movie_id": showtime.movie_id,
+        "movie_title": showtime.movie.title if showtime.movie else "",
+        "hall_id": showtime.hall_id,
+        "starts_at": iso_utc(starts_at),
+        "date": local.date().isoformat(),
+        "time": local.strftime("%H:%M"),
+        "format": showtime.format,
+        "format_label": showtime.format,
+        "format_value": {"2D": "STANDARD", "3D": "THREE_D", "IMAX": "IMAX"}.get(
+            showtime.format, "STANDARD"
+        ),
+        "language": showtime.language,
+        "base_price": round(showtime.price_cents / 100, 2),
+        "price": round(showtime.price_cents / 100, 2),
+        "price_cents": showtime.price_cents,
+        "currency": showtime.currency,
+        "is_active": bool(showtime.is_active),
+        "hall": {"id": showtime.hall.id, "name": showtime.hall.name} if showtime.hall else None,
+        "cinema": cinema_brief(showtime.hall.cinema if showtime.hall else None),
+    }
+
+
+def showtime_out(showtime: Showtime, with_seats: bool = False) -> dict:
     movie = showtime.movie
     hall = showtime.hall
+    hall_payload = (
+        {
+            "id": hall.id,
+            "name": hall.name,
+            "screen_type": hall.screen_type,
+            "rows": hall.rows,
+            "seats_per_row": hall.seats_per_row,
+            "aisle_after": list(hall.aisle_after or []),
+            "total_seats": hall.total_seats,
+        }
+        if hall
+        else None
+    )
+    if hall_payload is not None and with_seats:
+        from .seats import seat_category_map
+
+        hall_payload["seat_categories"] = seat_category_map(hall)
     return {
         "id": showtime.id,
         "movie_id": showtime.movie_id,
@@ -119,16 +205,6 @@ def showtime_out(showtime: Showtime) -> dict:
         "language": showtime.language,
         "format": showtime.format,
         "movie": movie_brief(movie) if movie else None,
-        "hall": {
-            "id": hall.id,
-            "name": hall.name,
-            "screen_type": hall.screen_type,
-            "rows": hall.rows,
-            "seats_per_row": hall.seats_per_row,
-            "aisle_after": list(hall.aisle_after or []),
-            "total_seats": hall.total_seats,
-        }
-        if hall
-        else None,
+        "hall": hall_payload,
         "cinema": cinema_brief(hall.cinema if hall else None),
     }

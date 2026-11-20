@@ -47,6 +47,30 @@ def pick_date(text: str) -> str | None:
     return None
 
 
+def pick_category(text: str) -> str | None:
+    """Seat class the guest asked for, so the fallback never proposes VIP for standard seats."""
+    lowered = text.lower()
+    if re.search(r"\b(?:no|not|don'?t|do not|without|sans)\b[^.]{0,20}\bvip\b", lowered):
+        return "regular"
+    if re.search(r"\bvvip\b", lowered):
+        return "vvip"
+    if re.search(r"\bvip\b", lowered):
+        return "vip"
+    if any(word in lowered for word in ("standard", "regular", "normal", "normale", "basique")):
+        return "regular"
+    return None
+
+
+def pick_row(text: str) -> str | None:
+    """Row the guest asked for ("row A", "line A", "rangée A", "A seats"), if any."""
+    match = re.search(
+        r"\b(?:row|line|rang[ée]e|rangee|صف|الصف)\s*([A-Za-z]{1,2})\b",
+        text,
+        re.IGNORECASE,
+    )
+    return match.group(1).upper() if match else None
+
+
 def pick_movie(movies: list[dict], text: str) -> dict | None:
     if not movies:
         return None
@@ -131,7 +155,14 @@ async def local_fallback(
                 "Please pick another film or open the showtimes page."
             )
         else:
-            result = await agent.suggest_seats({"showtime_id": chosen["id"], "count": pick_count(text)})
+            result = await agent.suggest_seats(
+                {
+                    "showtime_id": chosen["id"],
+                    "count": pick_count(text),
+                    "category": pick_category(text) or "any",
+                    "row": pick_row(text),
+                }
+            )
             pending = agent.session.pending
             if result.get("error") or not pending:
                 reply = (

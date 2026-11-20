@@ -104,10 +104,44 @@ def my_notifications(status: str | None = Query(None, pattern="^(pending|sent|fa
             conn, user_id=user_id_of(user), status=status, limit=limit, offset=offset)}
 
 
+@app.get("/notifications/me")
+def my_inbox(unread_only: bool = False,
+             limit: int = Query(50, ge=1, le=200), offset: int = Query(0, ge=0),
+             user: dict = Depends(current_user)):
+    """The website inbox: read state, unread counter and the event data the UI links on."""
+    with db.get_conn() as conn:
+        return service.list_my_inbox(
+            conn, user_id_of(user), unread_only=unread_only, limit=limit, offset=offset)
+
+
+@app.get("/notifications/unread-count")
+def unread_count(user: dict = Depends(current_user)):
+    with db.get_conn() as conn:
+        return {"unread": service.list_my_inbox(conn, user_id_of(user), unread_only=True, limit=1)["unread"]}
+
+
+@app.post("/notifications/read-all")
+def mark_all_read(user: dict = Depends(current_user)):
+    with db.get_conn() as conn:
+        return {"updated": service.mark_all_read(conn, user_id_of(user))}
+
+
 @app.get("/notifications/{notification_id}", response_model=NotificationOut)
 def get_notification(notification_id: int, user: dict = Depends(current_user)):
     with db.get_conn() as conn:
         return service.get_notification(conn, notification_id, user_id_of(user))
+
+
+@app.patch("/notifications/{notification_id}/read", response_model=NotificationOut)
+def mark_notification_read(notification_id: int, user: dict = Depends(current_user)):
+    with db.get_conn() as conn:
+        return service.mark_read(conn, notification_id, user_id_of(user))
+
+
+@app.delete("/notifications/{notification_id}", status_code=204)
+def delete_notification(notification_id: int, user: dict = Depends(current_user)):
+    with db.get_conn() as conn:
+        service.delete_notification(conn, notification_id, user_id_of(user))
 
 
 # --------------------------------------------------------------------------- admin

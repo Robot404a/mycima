@@ -71,7 +71,7 @@ def list_movies(
         )
 
     if date is not None or cinema_id is not None:
-        bookable = select(Showtime.movie_id)
+        bookable = select(Showtime.movie_id).where(Showtime.is_active.is_(True))
         if cinema_id is not None:
             bookable = bookable.join(Hall, Showtime.hall_id == Hall.id).where(Hall.cinema_id == cinema_id)
         if date is not None:
@@ -109,6 +109,18 @@ def resolve_movie(db: Session, movie_ref: str) -> Movie:
     return movie
 
 
+@router.get("/featured", response_model=MovieListOut, summary="A short list of films to feature on the site")
+def featured_movies(limit: int = Query(default=6, ge=1, le=12), db: Session = Depends(get_db)) -> dict:
+    stmt = (
+        select(Movie)
+        .where(Movie.is_now_showing.is_(True))
+        .order_by(Movie.rating.desc(), Movie.id.asc())
+        .limit(limit)
+    )
+    items = [movie_out(movie) for movie in db.scalars(stmt).all()]
+    return {"items": items, "total": len(items), "limit": limit, "offset": 0}
+
+
 @router.get("/{movie_ref}", response_model=MovieOut, summary="Movie details by id or slug")
 def get_movie(movie_ref: str, db: Session = Depends(get_db)) -> dict:
     return movie_out(resolve_movie(db, movie_ref))
@@ -126,6 +138,7 @@ def movie_showtimes(
         select(Showtime)
         .options(joinedload(Showtime.hall).joinedload(Hall.cinema), joinedload(Showtime.movie))
         .where(Showtime.movie_id == movie.id)
+        .where(Showtime.is_active.is_(True))
     )
     if date is not None:
         start, end = local_day_bounds(date)

@@ -36,6 +36,8 @@ def list_showtimes(
     elif upcoming_only:
         stmt = stmt.where(Showtime.starts_at >= utcnow())
 
+    stmt = stmt.where(Showtime.is_active.is_(True))
+
     if movie_id is not None:
         stmt = stmt.where(Showtime.movie_id == movie_id)
     if hall_id is not None:
@@ -54,6 +56,6 @@ def get_showtime(showtime_id: int, db: Session = Depends(get_db)) -> dict:
         .options(joinedload(Showtime.hall).joinedload(Hall.cinema), joinedload(Showtime.movie))
         .where(Showtime.id == showtime_id)
     )
-    if showtime is None:
+    if showtime is None or not showtime.is_active:
         raise HTTPException(status_code=404, detail="Showtime not found.")
-    return showtime_out(showtime)
+    return showtime_out(showtime, with_seats=True)

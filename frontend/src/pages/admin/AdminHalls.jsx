@@ -96,7 +96,7 @@ function CinemaForm({ open, onClose, onSaved }) {
         <div className="field-grid">
           <label className="field field--full">
             <span>Name</span>
-            <input value={form.name} onChange={(event) => update("name", event.target.value)} placeholder="Nocturne …" />
+            <input value={form.name} onChange={(event) => update("name", event.target.value)} placeholder="MyCima …" />
           </label>
           <label className="field field--full">
             <span>Address</span>
@@ -362,7 +362,7 @@ function SeatEditor({ hall, onHallChanged }) {
   const [painting, setPainting] = useState("VIP");
   const [pending, setPending] = useState(new Set());
 
-  const loader = useCallback(() => api(`/halls/${hall.id}/layout`, { auth: false }), [hall.id]);
+  const loader = useCallback(() => api(`/admin/halls/${hall.id}/layout`), [hall.id]);
   const { data, error, loading, setData } = useApi(loader, [hall.id]);
 
   const seats = data?.seats || [];

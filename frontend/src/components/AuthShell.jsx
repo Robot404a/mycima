@@ -14,12 +14,12 @@ export function AuthShell({ eyebrow, title, subtitle, children, footer, side = "
     <div className="auth-page">
       <div className="auth-panel">
         <div className="auth-panel-top">
-          <Link to="/" className="brand" aria-label="Nocturne home">
+          <Link to="/" className="brand" aria-label="MyCima home">
             <span className="brand-mark" aria-hidden="true">
               <span />
             </span>
             <span className="brand-word">
-              NOCTURNE
+              MYCIMA
               <small>Cinema, after dark</small>
             </span>
           </Link>
@@ -35,7 +35,7 @@ export function AuthShell({ eyebrow, title, subtitle, children, footer, side = "
           {footer ? <div className="auth-footer">{footer}</div> : null}
         </div>
         <div className="auth-legal">
-          <span>© {new Date().getFullYear()} Nocturne Cinemas</span>
+          <span>© {new Date().getFullYear()} MyCima Cinemas</span>
           <span>Casablanca · Morocco</span>
         </div>
       </div>
@@ -62,7 +62,7 @@ export function AuthShell({ eyebrow, title, subtitle, children, footer, side = "
               ? "The room goes dark, the world falls away, and for two hours nothing else has to matter."
               : "Every great evening begins with a seat. Choose yours, and let the film do the rest."}
           </p>
-          <small>The Nocturne manifesto</small>
+          <small>The MyCima manifesto</small>
         </div>
         <div className="auth-visual-foot">
           <span className="pulse-dot" /> Three houses in Casablanca · IMAX &amp; Dolby Atmos

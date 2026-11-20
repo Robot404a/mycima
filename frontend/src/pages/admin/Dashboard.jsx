@@ -17,6 +17,7 @@ import {
   Wallet,
 } from "lucide-react";
 import { api } from "../../lib/api";
+import { hydrateAdminActivity } from "../../lib/booking";
 import { useApi, useDocumentTitle } from "../../lib/hooks";
 import { formatDateLong, formatTime, money, relativeTime, seatList } from "../../lib/format";
 import { ErrorState, PageLoader } from "../../components/Feedback";
@@ -57,10 +58,16 @@ export default function AdminDashboard() {
       api("/health/upstreams", { auth: false }),
     ]);
     const value = (result, fallback) => (result.status === "fulfilled" ? result.value : fallback);
+    const bookingList = value(bookings, { bookings: [] });
+    const holdList = value(holds, { holds: [] });
+    const activity = await hydrateAdminActivity(
+      bookingList.bookings || [],
+      holdList.holds || [],
+    );
     return {
       stats: value(stats, {}),
-      bookings: value(bookings, { items: [], total: 0 }),
-      holds: value(holds, { items: [], total: 0 }),
+      bookings: { bookings: activity.bookings },
+      holds: { holds: activity.holds },
       users: value(users, { total: 0 }),
       showtimes: value(showtimes, { items: [] }),
       upstreams: value(upstreams, { items: [] }),
@@ -98,8 +105,8 @@ export default function AdminDashboard() {
   }
 
   const { stats, confirmed, cancelled, cancellationRate, todayShowtimes, activeShowtimes } = derived;
-  const bookings = data?.bookings?.items || [];
-  const holds = data?.holds?.items || [];
+  const bookings = data?.bookings?.bookings || [];
+  const holds = data?.holds?.holds || [];
   const revenue = Number(stats.revenue || 0);
   const currency = stats.currency || "MAD";
   const totalBookings = confirmed + cancelled;
@@ -110,7 +117,7 @@ export default function AdminDashboard() {
       <AdminPageHead
         eyebrow="Overview"
         title="The house, at a glance."
-        description="Bookings, holds and service health across the Nocturne platform."
+        description="Bookings, holds and service health across the MyCima platform."
         actions={
           <>
             <button
@@ -170,7 +177,9 @@ export default function AdminDashboard() {
           </div>
           <span className="kpi-label">Registered guests</span>
           <strong className="kpi-value">{data?.users?.total || 0}</strong>
-          <span className="kpi-foot">{stats.seats_booked || 0} seats booked in total</span>
+          <span className="kpi-foot">
+            {stats.seats_booked ?? stats.seats_sold ?? 0} seats booked in total
+          </span>
         </div>
       </div>
 
@@ -238,7 +247,7 @@ export default function AdminDashboard() {
             <MiniStat label="Active screenings" value={activeShowtimes} hint="Published to the site" />
             <MiniStat
               label="Seats booked"
-              value={stats.seats_booked || 0}
+              value={stats.seats_booked ?? stats.seats_sold ?? 0}
               hint="Across all active screenings"
             />
           </div>

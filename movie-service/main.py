@@ -7,6 +7,7 @@ protected by an admin JWT forwarded by the API gateway.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
 from contextlib import asynccontextmanager
@@ -20,7 +21,7 @@ from app.config import settings
 from app.database import SessionLocal, get_db, init_db
 from app.models import Movie
 from app.routers import admin, cinemas, halls, media, movies, showtimes
-from app.seed import seed_database
+from app.seed import seed_database, seed_showtimes
 
 logging.basicConfig(
     level=getattr(logging, settings.log_level.upper(), logging.INFO),
@@ -29,14 +30,30 @@ logging.basicConfig(
 logger = logging.getLogger(settings.service_name)
 
 
+async def _top_up_showtimes_forever(interval_seconds: int = 3600) -> None:
+    """Keep the rolling programme window full while the service runs."""
+    while True:
+        await asyncio.sleep(interval_seconds)
+        try:
+            with SessionLocal() as db:
+                created = seed_showtimes(db)
+                db.commit()
+            if created:
+                logger.info("showtime top-up: %s new screenings", created)
+        except Exception:  # pragma: no cover - the next tick retries
+            logger.exception("showtime top-up failed")
+
+
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     init_db()
     if settings.seed_on_startup:
         with SessionLocal() as db:
             seed_database(db)
+    refresher = asyncio.create_task(_top_up_showtimes_forever())
     logger.info("movie service ready")
     yield
+    refresher.cancel()
     logger.info("movie service stopped")
 
 

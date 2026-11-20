@@ -54,7 +54,7 @@ export default function Login() {
       subtitle="Sign in to see your bookings, notifications and the seats waiting for you."
       footer={
         <p>
-          New to Nocturne? <Link to="/register">Create an account</Link>
+          New to MyCima? <Link to="/register">Create an account</Link>
         </p>
       }
     >

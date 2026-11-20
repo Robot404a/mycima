@@ -217,6 +217,11 @@ def route_backend(path: str, method: str) -> tuple[str, str] | None:
     if upstream.startswith("/payments"):
         return "payment", upstream
 
+    # The site asks for "my bookings" as /bookings/me; the reservation service
+    # exposes the same collection at /bookings.
+    if upstream.rstrip("/") == "/bookings/me":
+        return "reservation", "/bookings"
+
     if upstream.startswith("/holds") or upstream.startswith("/bookings"):
         return "reservation", upstream
     if upstream.startswith("/notifications"):

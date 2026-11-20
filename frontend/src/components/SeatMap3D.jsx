@@ -39,7 +39,8 @@ function Seat({ seat, position, selected, onToggle, onHover }) {
           emissiveIntensity={selected ? 0.55 : hovered ? 0.2 : 0}
         />
       </mesh>
-      <mesh position={[0, 0.27, -0.2]} castShadow>
+      {/* The screen sits at -Z, so the backrest is on the +Z side: the seats face the screen. */}
+      <mesh position={[0, 0.27, 0.2]} castShadow>
         <boxGeometry args={[0.68, 0.45, 0.12]} />
         <meshStandardMaterial
           color={color}
@@ -51,7 +52,7 @@ function Seat({ seat, position, selected, onToggle, onHover }) {
       </mesh>
       {seat.category !== "REGULAR" ? (
         <>
-          <mesh position={[0, 0.075, 0.31]}>
+          <mesh position={[0, 0.075, -0.3]}>
             <boxGeometry args={[0.5, 0.035, 0.035]} />
             <meshBasicMaterial
               color={seat.category === "VVIP" ? "#f2d99d" : "#d8c49b"}

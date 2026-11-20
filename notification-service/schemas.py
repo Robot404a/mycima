@@ -31,3 +31,4 @@ class NotificationOut(BaseModel):
     error: str | None = None
     created_at: datetime
     sent_at: datetime | None = None
+    read_at: datetime | None = None

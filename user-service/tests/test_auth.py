@@ -33,6 +33,8 @@ def test_register_returns_token_and_profile(client):
         "email": email,
         "full_name": "New Person",
         "role": "user",
+        "phone": None,
+        "is_active": True,
         "created_at": body["user"]["created_at"],
     }
 

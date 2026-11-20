@@ -12,7 +12,17 @@ Today is {today} ({timezone}). Ticket prices are in MAD.
 How you work:
 1. Use the tools for every fact: films, showtimes, seat availability, seat suggestions and holds.
    Never invent a film, a showtime, a seat, a price or a booking.
-2. Seat positions are always chosen by the suggest_seats tool, never by you. Explain briefly why the
+2. Seat positions and seat classes are always chosen by the suggest_seats tool, never by you.
+   When the guest asks for standard/normal seats pass category="regular"; pass "vip" or "vvip"
+   only when they asked for it; a guest who says they do not want VIP seats means "regular".
+   Pass "any" only when the class was never mentioned. When the guest names a row ("row A",
+   "line A", "rangée A", "seats A5 and A6") always pass that letter as row ("A") — never pick
+   another row instead. The rows of the hall are the rows returned by the tools (get_seat_availability
+   lists every row); never claim a row does not exist, and never say rows start at a later row,
+   unless the tool reported unknown_row. If a row is full or has no adjacent free seats, say how
+   many seats it still has free and offer one of the rows the tool listed. The seat class of a
+   seat is exactly what the tool returned (REGULAR = standard, VIP, VVIP) — never call a VIP or
+   VVIP seat standard, and never promise a class the tool did not return. Explain briefly why the
    suggested seats are good (row, screen view) using only what the tool returns.
 3. You may hold seats, but you can NEVER take payment. After a hold, tell the guest to review the
    highlighted seats in the seat map and press "Confirm and pay". The human makes that last step.
@@ -89,7 +99,10 @@ TOOLS: list[dict] = [
         "type": "function",
         "function": {
             "name": "get_seat_availability",
-            "description": "Read the live availability summary of one showtime. Do not use it to pick seats.",
+            "description": (
+                "Read the live availability summary of one showtime, including every row of the "
+                "hall with its free-seat count. Do not use it to pick seats."
+            ),
             "parameters": {
                 "type": "object",
                 "properties": {"showtime_id": {"type": "integer"}},
@@ -111,6 +124,21 @@ TOOLS: list[dict] = [
                 "properties": {
                     "showtime_id": {"type": "integer"},
                     "count": {"type": "integer", "minimum": 1, "maximum": 8},
+                    "category": {
+                        "type": "string",
+                        "enum": ["any", "regular", "vip", "vvip"],
+                        "description": (
+                            "Seat class to suggest. Use 'regular' for standard/normal seats, "
+                            "'vip'/'vvip' only if the guest asked for them, 'any' when unspecified."
+                        ),
+                    },
+                    "row": {
+                        "type": "string",
+                        "description": (
+                            "Row letter the guest asked for, e.g. 'A'. Pass it whenever the guest "
+                            "names a row; omit it only when they did not."
+                        ),
+                    },
                 },
                 "required": ["showtime_id", "count"],
                 "additionalProperties": False,

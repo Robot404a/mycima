@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -26,6 +26,7 @@ class MovieOut(BaseModel):
     language: str
     country: str
     poster_url: str
+    trailer_url: str | None = None
     is_now_showing: bool
 
 
@@ -70,6 +71,9 @@ class HallBrief(BaseModel):
     seats_per_row: int | None = None
     aisle_after: list[int] = []
     total_seats: int
+    # Only populated on a single-showtime read, so the seat map and the price
+    # charged for each seat always agree.
+    seat_categories: dict[str, str] = {}
 
 
 class HallOut(HallBrief):
@@ -148,6 +152,7 @@ class MovieCreate(BaseModel):
     language: str = "English"
     country: str = ""
     poster_path: str | None = None
+    trailer_url: str | None = None
     is_now_showing: bool = True
 
 
@@ -166,6 +171,7 @@ class MovieUpdate(BaseModel):
     language: str | None = None
     country: str | None = None
     poster_path: str | None = None
+    trailer_url: str | None = None
     is_now_showing: bool | None = None
 
 
@@ -193,3 +199,64 @@ class CinemaCreate(BaseModel):
     city: str = Field(min_length=1, max_length=80)
     address: str = ""
     phone: str | None = None
+    description: str | None = None
+    amenities: list[str] = []
+
+
+class AdminMoviePayload(BaseModel):
+    """Accepts the control room's film form and the public catalogue fields."""
+
+    title: str | None = Field(default=None, min_length=1, max_length=200)
+    slug: str | None = Field(default=None, max_length=140)
+    tagline: str | None = Field(default=None, max_length=255)
+    original_title: str | None = None
+    release_year: int | None = Field(default=None, ge=1888, le=2100)
+    release_date: date | None = None
+    director: str | None = None
+    cast: list[str] | None = None
+    genres: list[str] | None = None
+    moods: list[str] | None = None
+    mood_tags: list[str] | None = None
+    synopsis: str | None = None
+    duration_minutes: int | None = Field(default=None, ge=1, le=400)
+    duration_min: int | None = Field(default=None, ge=1, le=400)
+    rating: float | None = Field(default=None, ge=0, le=10)
+    age_rating: str | None = None
+    language: str | None = None
+    country: str | None = None
+    poster_url: str | None = None
+    backdrop_url: str | None = None
+    trailer_url: str | None = None
+    status: str | None = Field(default=None, pattern="^(now_showing|coming_soon|archived)$")
+    featured: bool | None = None
+    is_now_showing: bool | None = None
+
+
+class AdminShowtimePayload(BaseModel):
+    movie_id: int | None = None
+    hall_id: int | None = None
+    starts_at: datetime | None = None
+    price_cents: int | None = Field(default=None, ge=0)
+    base_price: float | None = Field(default=None, ge=0)
+    language: str | None = None
+    format: str | None = None
+    is_active: bool | None = None
+
+
+class AdminHallPayload(BaseModel):
+    cinema_id: int | None = None
+    name: str | None = Field(default=None, min_length=1, max_length=80)
+    screen_type: str | None = None
+    rows: int | None = Field(default=None, ge=1, le=40)
+    row_count: int | None = Field(default=None, ge=1, le=40)
+    seats_per_row: int | None = Field(default=None, ge=1, le=40)
+    aisle_after: list[int] | None = None
+    aisles_after: list[int] | None = None
+    supported_formats: list[str] | None = None
+    description: str | None = None
+    is_active: bool | None = None
+    broken_seats: list[str] | None = None
+
+
+class AdminSeatPayload(BaseModel):
+    category: str = Field(pattern="^(REGULAR|VIP|VVIP)$")

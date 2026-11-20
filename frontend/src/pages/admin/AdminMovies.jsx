@@ -341,7 +341,7 @@ export default function AdminMovies() {
     if (!archiving) return;
     setSaving(true);
     try {
-      await api(`/admin/movies/${archiving.id}`, { method: "DELETE" });
+      await api(`/admin/movies/${archiving.id}`, { method: "PATCH", body: { status: "archived" } });
       pushToast(`${archiving.title} archived.`, "success");
       setArchiving(null);
       reload();

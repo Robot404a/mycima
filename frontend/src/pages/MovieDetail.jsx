@@ -14,26 +14,32 @@ import {
 import { api } from "../lib/api";
 import { useApi, useDocumentTitle } from "../lib/hooks";
 import {
+  cinemaDay,
   dayParts,
   duration,
   formatDateLong,
-  formatDateShort,
+  formatTime,
   money,
   relativeDayLabel,
 } from "../lib/format";
 import { ErrorState, PageLoader, Poster } from "../components/Feedback";
 
 const FORMAT_COPY = {
-  STANDARD: "The classic. Warm picture, generous screen, every seat in the room.",
-  THREE_D: "Depth without the headache. A more immersive way into the story.",
+  "2D": "The classic. Warm picture, generous screen, every seat in the room.",
+  "3D": "Depth without the headache. A more immersive way into the story.",
   IMAX: "Wall-to-wall image and sound you feel in the floor.",
+  VIP: "Recliners, extra legroom and a quieter room for the film.",
 };
 
 function openConcierge(prompt) {
-  window.dispatchEvent(new CustomEvent("nocturne:assistant-open", { detail: { prompt } }));
+  window.dispatchEvent(new CustomEvent("mycima:assistant-open", { detail: { prompt } }));
 }
 
 function FilmHero({ movie }) {
+  const trailerHref =
+    movie.trailer_url ||
+    `https://www.youtube.com/results?search_query=${encodeURIComponent(`${movie.title} official trailer`)}`;
+
   return (
     <section className="film-hero">
       <div
@@ -51,7 +57,9 @@ function FilmHero({ movie }) {
           </div>
           <div className="film-copy">
             <div className="film-kicker">
-              <span className="eyebrow">{movie.status === "coming_soon" ? "Coming soon" : "Now showing"}</span>
+              <span className="eyebrow">
+                {movie.is_now_showing === false ? "Coming soon" : "Now showing"}
+              </span>
               {movie.rating ? (
                 <span className="film-rating">
                   <Star size={13} fill="currentColor" /> {Number(movie.rating).toFixed(1)}
@@ -64,10 +72,10 @@ function FilmHero({ movie }) {
             <p className="film-synopsis">{movie.synopsis}</p>
             <div className="film-meta">
               <span>
-                <Clock3 size={15} /> {duration(movie.duration_min)}
+                <Clock3 size={15} /> {duration(movie.duration_minutes)}
               </span>
               <span>
-                <CalendarDays size={15} /> {movie.release_date ? formatDateShort(movie.release_date) : "2027"}
+                <CalendarDays size={15} /> {movie.release_year || "TBC"}
               </span>
               {movie.director ? <span>Directed by {movie.director}</span> : null}
             </div>
@@ -77,7 +85,7 @@ function FilmHero({ movie }) {
               ))}
             </div>
             <div className="film-actions">
-              {movie.status !== "coming_soon" ? (
+              {movie.is_now_showing !== false ? (
                 <a href="#showtimes" className="btn btn--gold">
                   <Ticket size={16} /> Choose a screening
                 </a>
@@ -90,16 +98,14 @@ function FilmHero({ movie }) {
                   <Sparkles size={16} /> Ask the concierge
                 </button>
               )}
-              {movie.trailer_url ? (
-                <a
-                  href={movie.trailer_url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="btn btn--ghost"
-                >
-                  <Play size={15} /> Watch trailer
-                </a>
-              ) : null}
+              <a
+                href={trailerHref}
+                target="_blank"
+                rel="noreferrer"
+                className="btn btn--ghost"
+              >
+                <Play size={15} /> Watch trailer
+              </a>
             </div>
             {movie.cast?.length ? (
               <p className="film-cast">
@@ -130,32 +136,51 @@ export default function MovieDetail() {
   useDocumentTitle(movieApi.data?.title || "Film");
 
   const movie = movieApi.data;
-  const schedule = showtimesApi.data;
-  const dates = schedule?.dates || [];
-  const formats = schedule?.formats || [];
+
+  // `/movies/{id}/showtimes` returns flat service showtimes; the page groups them
+  // into days and formats itself.
+  const showtimes = useMemo(() => showtimesApi.data?.items || [], [showtimesApi.data]);
+
+  const dates = useMemo(
+    () => [...new Set(showtimes.map((showtime) => cinemaDay(showtime.starts_at)))].filter(Boolean).sort(),
+    [showtimes],
+  );
+
+  const formats = useMemo(() => {
+    const counts = new Map();
+    for (const showtime of showtimes) {
+      const value = showtime.format || "2D";
+      counts.set(value, (counts.get(value) || 0) + 1);
+    }
+    return [...counts.entries()].map(([value, count]) => ({ value, label: value, count }));
+  }, [showtimes]);
 
   useEffect(() => {
     if (!dates.length) return;
-    setSelectedDate((current) => current || dates[0]);
+    setSelectedDate((current) => (dates.includes(current) ? current : dates[0]));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [schedule]);
+  }, [dates]);
 
   useEffect(() => {
     if (!formats.length) return;
-    setSelectedFormat((current) => current || formats[0]?.value);
+    setSelectedFormat((current) =>
+      formats.some((format) => format.value === current) ? current : formats[0].value,
+    );
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [schedule]);
+  }, [formats]);
 
   const filteredShowtimes = useMemo(() => {
-    return (schedule?.showtimes || []).filter(
-      (item) => item.date === selectedDate && (!selectedFormat || item.format === selectedFormat),
+    return showtimes.filter(
+      (item) =>
+        cinemaDay(item.starts_at) === selectedDate &&
+        (!selectedFormat || (item.format || "2D") === selectedFormat),
     );
-  }, [schedule, selectedDate, selectedFormat]);
+  }, [showtimes, selectedDate, selectedFormat]);
 
   const groups = useMemo(() => {
     const byCinema = new Map();
     for (const showtime of filteredShowtimes) {
-      const cinemaName = showtime.cinema?.name || "Nocturne";
+      const cinemaName = showtime.cinema?.name || "MyCima";
       if (!byCinema.has(cinemaName)) {
         byCinema.set(cinemaName, { cinema: showtime.cinema, halls: new Map() });
       }
@@ -182,7 +207,7 @@ export default function MovieDetail() {
   }
   if (!movie) return null;
 
-  const noSchedule = movie.status === "coming_soon" || !dates.length;
+  const noSchedule = movie.is_now_showing === false || !dates.length;
 
   return (
     <div className="film-page">
@@ -196,9 +221,8 @@ export default function MovieDetail() {
               In the <em>distance</em>
             </h2>
             <p>
-              {movie.title} arrives{" "}
-              {movie.release_date ? formatDateLong(movie.release_date) : "soon"}. Ask the concierge to
-              remember it for you, or explore what is on screen tonight.
+              {movie.title} arrives soon. Ask the concierge to remember it for you, or explore what
+              is on screen tonight.
             </p>
             <div className="coming-panel-actions">
               <button
@@ -333,11 +357,11 @@ export default function MovieDetail() {
                                   key={showtime.id}
                                   to={`/booking/${showtime.id}`}
                                   className="time-button"
-                                  aria-label={`Book ${showtime.format_label} at ${showtime.time} in ${hall.hall?.name}`}
+                                  aria-label={`Book ${showtime.format} at ${formatTime(showtime.starts_at)} in ${hall.hall?.name}`}
                                 >
-                                  <strong>{showtime.time}</strong>
+                                  <strong>{formatTime(showtime.starts_at)}</strong>
                                   <small>
-                                    {showtime.format_label} · {money(showtime.base_price)} from
+                                    {showtime.format} · {money(showtime.price)} from
                                   </small>
                                 </Link>
                               ))}

@@ -13,7 +13,7 @@ log = logging.getLogger("notification-service.service")
 
 # Public columns (the email body stays internal).
 _COLUMNS = ("id, user_id, recipient_email, type, reference_id, subject, "
-            "status, attempts, error, created_at, sent_at")
+            "status, attempts, error, created_at, sent_at, read_at")
 
 
 def _finish(notification_id: int, status: str, error: str | None) -> dict:
@@ -119,3 +119,72 @@ def get_notification(conn, notification_id: int, user_id: int) -> dict:
     if row is None:
         raise HTTPException(404, "Notification not found.")
     return row
+
+
+def list_my_inbox(conn, user_id: int, *, unread_only: bool = False,
+                  limit: int = 50, offset: int = 0) -> dict:
+    """The user's inbox in the shape the website consumes (read state, counts)."""
+    clauses, params = ["user_id = %s"], [user_id]
+    if unread_only:
+        clauses.append("read_at IS NULL")
+    where = " AND ".join(clauses)
+    rows = conn.execute(
+        f"SELECT {_COLUMNS}, body FROM notifications WHERE {where} "
+        f"ORDER BY created_at DESC, id DESC LIMIT %s OFFSET %s",
+        (*params, limit, offset),
+    ).fetchall()
+    totals = conn.execute(
+        "SELECT count(*) AS total, count(*) FILTER (WHERE read_at IS NULL) AS unread "
+        "FROM notifications WHERE user_id = %s",
+        (user_id,),
+    ).fetchone()
+    items = [
+        {
+            "id": row["id"],
+            "type": row["type"],
+            # Event names the interface maps to icons and links.
+            "event_type": (
+                "booking.confirmed" if row["type"] == "reservation_created"
+                else "booking.cancelled"
+            ),
+            "title": row["subject"],
+            "message": row["body"],
+            "reference_id": row["reference_id"],
+            "data": {"booking_id": row["reference_id"]} if row["reference_id"] else {},
+            "status": row["status"],
+            "is_read": row["read_at"] is not None,
+            "read_at": row["read_at"],
+            "created_at": row["created_at"],
+        }
+        for row in rows
+    ]
+    return {"items": items, "total": totals["total"], "unread": totals["unread"]}
+
+
+def mark_read(conn, notification_id: int, user_id: int) -> dict:
+    row = conn.execute(
+        f"UPDATE notifications SET read_at = COALESCE(read_at, now()) "
+        f"WHERE id = %s AND user_id = %s RETURNING {_COLUMNS}",
+        (notification_id, user_id),
+    ).fetchone()
+    if row is None:
+        raise HTTPException(404, "Notification not found.")
+    return row
+
+
+def mark_all_read(conn, user_id: int) -> int:
+    rows = conn.execute(
+        "UPDATE notifications SET read_at = now() "
+        "WHERE user_id = %s AND read_at IS NULL RETURNING id",
+        (user_id,),
+    ).fetchall()
+    return len(rows)
+
+
+def delete_notification(conn, notification_id: int, user_id: int) -> None:
+    deleted = conn.execute(
+        "DELETE FROM notifications WHERE id = %s AND user_id = %s RETURNING id",
+        (notification_id, user_id),
+    ).fetchone()
+    if deleted is None:
+        raise HTTPException(404, "Notification not found.")

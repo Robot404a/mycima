@@ -18,6 +18,7 @@ import {
 import { api, apiErrorMessage } from "../lib/api";
 import { useApi, useDocumentTitle, useMediaQuery } from "../lib/hooks";
 import { formatDateLong, money } from "../lib/format";
+import { fetchShowtime, seatMapFrom } from "../lib/booking";
 import { PageLoader, ErrorState, Spinner, EmptyState } from "../components/Feedback";
 import { StepIndicator } from "../components/StepIndicator";
 import { Countdown } from "../components/Countdown";
@@ -117,10 +118,21 @@ export default function SeatSelection() {
   const [hovered, setHovered] = useState(null);
   const [notice, setNotice] = useState("");
 
-  const loader = useCallback(
-    () => api(`/showtimes/${showtimeId}/seats`, { auth: isAuthenticated }),
-    [showtimeId, isAuthenticated],
-  );
+  const loader = useCallback(async () => {
+    const [seatData, showtime] = await Promise.all([
+      api(`/showtimes/${showtimeId}/seats`, { auth: isAuthenticated }),
+      fetchShowtime(showtimeId),
+    ]);
+    let holds = [];
+    if (isAuthenticated) {
+      try {
+        holds = (await api("/holds"))?.holds || [];
+      } catch {
+        holds = [];
+      }
+    }
+    return seatMapFrom(seatData, showtime, holds);
+  }, [showtimeId, isAuthenticated]);
   const { data, error, loading, reload, setData } = useApi(loader, [showtimeId, isAuthenticated], {
     interval: 20000,
   });
@@ -214,7 +226,7 @@ export default function SeatSelection() {
     try {
       const hold = await api("/holds", {
         method: "POST",
-        body: { showtime_id: Number(showtimeId), seat_ids: selectedSeats.map((s) => s.seat_id) },
+        body: { showtime_id: Number(showtimeId), seats: selectedSeats.map((s) => s.seat_id) },
         timeout: 30000,
       });
       pushToast("Seats held — complete payment before the countdown ends.", "success");
@@ -489,7 +501,7 @@ export default function SeatSelection() {
             className="concierge-nudge"
             onClick={() =>
               window.dispatchEvent(
-                new CustomEvent("nocturne:assistant-open", {
+                new CustomEvent("mycima:assistant-open", {
                   detail: { prompt: `Find me seats for ${movie.title}` },
                 }),
               )

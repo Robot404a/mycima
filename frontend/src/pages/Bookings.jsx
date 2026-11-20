@@ -14,6 +14,7 @@ import { api } from "../lib/api";
 import { useApi, useDocumentTitle } from "../lib/hooks";
 import { formatDateLong, formatTime, money, seatList } from "../lib/format";
 import { EmptyState, ErrorState, PageLoader, Poster, Skeleton } from "../components/Feedback";
+import { hydrateBookings } from "../lib/booking";
 
 function BookingRow({ booking }) {
   const snapshot = booking.snapshot || {};
@@ -79,7 +80,10 @@ export default function Bookings() {
   const [tab, setTab] = useState("upcoming");
   const [query, setQuery] = useState("");
 
-  const loader = useCallback(() => api("/bookings/me"), []);
+  const loader = useCallback(async () => {
+    const response = await api("/bookings/me");
+    return { items: await hydrateBookings(response?.bookings || []) };
+  }, []);
   const { data, error, loading, reload } = useApi(loader, []);
 
   const items = data?.items || [];

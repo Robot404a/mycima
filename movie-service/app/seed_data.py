@@ -69,6 +69,15 @@ HALLS = [
         "broken_seats": [],
     },
     {
+        "cinema": "Megarama Casablanca",
+        "name": "Salle 4 - 3D",
+        "screen_type": "premium",
+        "rows": 12,
+        "seats_per_row": 18,
+        "aisle_after": [4, 14],
+        "broken_seats": [],
+    },
+    {
         "cinema": "Pathé Californie",
         "name": "Salle 1",
         "screen_type": "standard",
@@ -615,7 +624,7 @@ MOVIES = [
         "age_rating": "All ages",
         "language": "French",
         "country": "France",
-        "poster_path": None,
+        "poster_path": "https://upload.wikimedia.org/wikipedia/en/5/53/Amelie_poster.jpg",
     },
     {
         "slug": "les-chevaux-de-dieu",
@@ -635,7 +644,7 @@ MOVIES = [
         "age_rating": "16+",
         "language": "Arabic",
         "country": "Morocco",
-        "poster_path": None,
+        "poster_path": "/xtCYy7sfWIPH2zMUAcHAxxI4Cun.jpg",
     },
     {
         "slug": "ali-zaoua",
@@ -655,7 +664,7 @@ MOVIES = [
         "age_rating": "12+",
         "language": "Arabic",
         "country": "Morocco",
-        "poster_path": None,
+        "poster_path": "/5Uf2zhivRpxTNI9c1MjGwjT3Szx.jpg",
     },
     {
         "slug": "casanegra",
@@ -675,7 +684,7 @@ MOVIES = [
         "age_rating": "16+",
         "language": "Arabic",
         "country": "Morocco",
-        "poster_path": None,
+        "poster_path": "/maD6IK2SQMmdsPoxpkPtkQV8WBA.jpg",
     },
 ]
 
